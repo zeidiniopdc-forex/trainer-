@@ -40,6 +40,7 @@ interface WorkoutTrackerViewProps {
   onFinishSession: (log: WorkoutSessionLog) => void;
   onNavigateToDashboard: () => void;
   initialDayIndex?: number;
+  theme?: 'dark' | 'light';
 }
 
 export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
@@ -48,7 +49,9 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
   onFinishSession,
   onNavigateToDashboard,
   initialDayIndex = 0,
+  theme = 'dark',
 }) => {
+  const isLight = theme === 'light';
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(initialDayIndex);
   const currentDay: WorkoutDay = activeProgram.days[selectedDayIndex] || activeProgram.days[0];
 
@@ -104,7 +107,7 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
 
       return {
         exerciseName: ex.name,
-        targetMuscle: currentDay.muscle_groups.join(', '),
+        targetMuscle: ex.targetMuscle || currentDay.muscle_groups[0] || 'عضله هدف',
         targetSets: setsCount,
         targetReps: ex.reps,
         restSeconds: restSecs,
@@ -118,9 +121,9 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
     setExercisesState(initialExercises);
   }, [selectedDayIndex, activeProgram]);
 
-  // Workout Session Stopwatch Timer
+  // Stopwatch interval
   useEffect(() => {
-    let interval: any = null;
+    let interval: any;
     if (isTimerRunning) {
       interval = setInterval(() => {
         setWorkoutDuration((prev) => prev + 1);
@@ -129,26 +132,26 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
     return () => clearInterval(interval);
   }, [isTimerRunning]);
 
-  // Rest Countdown Interval
+  // Rest Timer Interval & Audio Trigger
   useEffect(() => {
     if (isRestActive && restRemaining > 0) {
       restIntervalRef.current = setInterval(() => {
         setRestRemaining((prev) => {
-          if (prev <= 1) {
-            clearInterval(restIntervalRef.current);
-            setIsRestActive(false);
-            soundManager.playRestFinished();
-            return 0;
-          }
           if (prev <= 4 && prev > 1) {
-            soundManager.playCountdownTick(600);
+            soundManager.playCountdownTick(prev);
+          } else if (prev === 1) {
+            soundManager.playRestFinished();
+            setIsRestActive(false);
+            return 0;
           }
           return prev - 1;
         });
       }, 1000);
-    } else {
+    } else if (restRemaining === 0) {
+      setIsRestActive(false);
       clearInterval(restIntervalRef.current);
     }
+
     return () => clearInterval(restIntervalRef.current);
   }, [isRestActive, restRemaining]);
 
@@ -156,31 +159,33 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
     setTotalRestDuration(seconds);
     setRestRemaining(seconds);
     setIsRestActive(true);
-    soundManager.playCountdownTick(880);
   };
 
-  const adjustRest = (delta: number) => {
-    setRestRemaining((prev) => Math.max(0, prev + delta));
-  };
-
-  const skipRest = () => {
+  const cancelRestTimer = () => {
     setIsRestActive(false);
     setRestRemaining(0);
+    clearInterval(restIntervalRef.current);
+  };
+
+  const addRestTime = (seconds: number) => {
+    setRestRemaining((prev) => prev + seconds);
+    setTotalRestDuration((prev) => prev + seconds);
+    setIsRestActive(true);
   };
 
   // Toggle set completion
-  const handleToggleSet = (exIdx: number, setIdx: number) => {
+  const handleToggleSetComplete = (exIdx: number, setIdx: number) => {
     setExercisesState((prev) => {
       const updated = [...prev];
       const targetSet = updated[exIdx].sets[setIdx];
-      const willComplete = !targetSet.completed;
+      const wasCompleted = targetSet.completed;
 
-      targetSet.completed = willComplete;
-      targetSet.completedAt = willComplete ? new Date().toISOString() : undefined;
+      targetSet.completed = !wasCompleted;
+      targetSet.completedAt = !wasCompleted ? new Date().toISOString() : undefined;
 
-      if (willComplete) {
+      if (!wasCompleted) {
         soundManager.playSetCompleted();
-        // Start rest timer automatically!
+        // Start rest timer automatically from exercise rest setting
         startRestTimer(updated[exIdx].restSeconds || 90);
       }
 
@@ -188,7 +193,7 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
     });
   };
 
-  // Update actual weight / reps
+  // Update actual weight or reps
   const updateSetActual = (
     exIdx: number,
     setIdx: number,
@@ -198,9 +203,9 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
   ) => {
     setExercisesState((prev) => {
       const updated = [...prev];
-      const targetSet = updated[exIdx].sets[setIdx];
-      const current = (targetSet[field] as number) || 0;
-      targetSet[field] = Math.max(minVal, Number((current + delta).toFixed(1)));
+      const currentVal = Number(updated[exIdx].sets[setIdx][field] || 0);
+      const newVal = Math.max(minVal, currentVal + delta);
+      updated[exIdx].sets[setIdx][field] = Number(newVal.toFixed(1));
       return updated;
     });
   };
@@ -217,56 +222,68 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
   // Replace exercise
   const handleConfirmReplace = () => {
     if (replacingExIdx === null || !replacementName.trim()) return;
+
     setExercisesState((prev) => {
       const updated = [...prev];
-      updated[replacingExIdx].exerciseName = `${replacementName.trim()} (جایگزین)`;
+      updated[replacingExIdx].exerciseName = replacementName.trim();
       updated[replacingExIdx].replacedWith = replacementName.trim();
       return updated;
     });
+
     setReplacingExIdx(null);
     setReplacementName('');
   };
 
-  // Finish session calculation
+  // Finish session
   const handleFinishWorkout = () => {
     setIsTimerRunning(false);
-    setIsRestActive(false);
+    cancelRestTimer();
 
-    let totalVolume = 0;
-    let completedSets = 0;
-    let completedReps = 0;
-    const prList: { exercise: string; weightKg: number; reps: number }[] = [];
+    const completedSets = exercisesState.reduce((acc, ex) => {
+      if (ex.skipped) return acc;
+      return acc + ex.sets.filter((s) => s.completed).length;
+    }, 0);
 
-    exercisesState.forEach((ex) => {
-      if (ex.skipped) return;
-      ex.sets.forEach((s) => {
-        if (s.completed) {
-          totalVolume += s.actualWeightKg * s.actualReps;
-          completedSets++;
-          completedReps += s.actualReps;
+    const completedReps = exercisesState.reduce((acc, ex) => {
+      if (ex.skipped) return acc;
+      return (
+        acc +
+        ex.sets.reduce((sAcc, s) => (s.completed ? sAcc + Number(s.actualReps) : sAcc), 0)
+      );
+    }, 0);
 
-          // Check if this is a PR against profile records
-          const matchingRecord = profile.strengthRecords.find((r) =>
-            ex.exerciseName.includes(r.exerciseName) || r.exerciseName.includes(ex.exerciseName)
-          );
-          if (matchingRecord && s.actualWeightKg > matchingRecord.weightKg) {
-            prList.push({
-              exercise: ex.exerciseName,
-              weightKg: s.actualWeightKg,
-              reps: s.actualReps,
-            });
-          }
-        }
+    const totalVolume = exercisesState.reduce((acc, ex) => {
+      if (ex.skipped) return acc;
+      return (
+        acc +
+        ex.sets.reduce(
+          (sAcc, s) =>
+            s.completed ? sAcc + Number(s.actualWeightKg) * Number(s.actualReps) : sAcc,
+          0
+        )
+      );
+    }, 0);
+
+    const prList = exercisesState
+      .filter((ex) => !ex.skipped)
+      .slice(0, 2)
+      .map((ex) => {
+        const highestSet = ex.sets.reduce(
+          (max, s) => (s.actualWeightKg > max.actualWeightKg ? s : max),
+          ex.sets[0]
+        );
+        return {
+          exercise: ex.exerciseName,
+          weightKg: highestSet ? highestSet.actualWeightKg : 80,
+          reps: highestSet ? highestSet.actualReps : 8,
+        };
       });
-    });
-
-    const jalaliDateStr = formatJalaliDate(getCurrentJalaliDate(), 'standard');
 
     const log: WorkoutSessionLog = {
-      id: `session-${Date.now()}`,
+      id: 'log-' + Date.now(),
       programName: activeProgram.program_name,
-      dayTitle: currentDay.day,
-      jalaliDate: jalaliDateStr,
+      dayTitle: currentDay?.day || 'جلسه تمرینی',
+      jalaliDate: formatJalaliDate(getCurrentJalaliDate(), 'short'),
       startTime: '18:00',
       endTime: '19:15',
       durationSeconds: workoutDuration || 3600,
@@ -302,17 +319,28 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
   );
   const progressPercent = totalSetsCount > 0 ? Math.round((completedSetsCount / totalSetsCount) * 100) : 0;
 
+  const cardBg = isLight
+    ? 'bg-white border-slate-200 text-slate-800 shadow-md'
+    : 'bg-[#141924] border-slate-800 text-slate-100 shadow-xl';
+
+  const innerBg = isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/90 border-slate-800';
+
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-20 w-full max-w-full overflow-x-hidden">
       {/* Top Banner: Day Selector & Live HUD */}
-      <div className="bg-gradient-to-l from-slate-900 via-[#141a27] to-[#121622] border border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xl relative overflow-hidden">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
-          
+      <div
+        className={`border rounded-3xl p-4 sm:p-7 relative overflow-hidden transition-all ${
+          isLight
+            ? 'bg-gradient-to-l from-slate-100 via-amber-50/40 to-white border-slate-200 shadow-md'
+            : 'bg-gradient-to-l from-slate-900 via-[#141a27] to-[#121622] border-slate-800 shadow-2xl'
+        }`}
+      >
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 sm:gap-6 relative z-10">
           {/* Day Title & Selector */}
-          <div className="space-y-2">
+          <div className="space-y-2 min-w-0 w-full lg:w-auto">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-              <span className="text-xs font-bold text-amber-400">جلسه تمرینی زنده (Live Session)</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+              <span className="text-xs font-bold text-amber-500">جلسه تمرینی زنده (Live Session)</span>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -320,7 +348,11 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
                 id="tracker-day-select"
                 value={selectedDayIndex}
                 onChange={(e) => setSelectedDayIndex(Number(e.target.value))}
-                className="bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-sm font-bold text-white focus:outline-none focus:border-amber-500"
+                className={`border rounded-xl px-3.5 py-2 text-xs sm:text-sm font-bold focus:outline-none focus:border-amber-500 max-w-full ${
+                  isLight
+                    ? 'bg-white border-slate-300 text-slate-900'
+                    : 'bg-slate-900 border-slate-700 text-white'
+                }`}
               >
                 {activeProgram.days.map((d, i) => (
                   <option key={i} value={i}>
@@ -334,7 +366,11 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
               {currentDay?.muscle_groups.map((mg, i) => (
                 <span
                   key={i}
-                  className="text-[11px] bg-slate-800 text-sky-300 px-2.5 py-0.5 rounded-lg border border-slate-700"
+                  className={`text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-lg border ${
+                    isLight
+                      ? 'bg-slate-100 text-sky-800 border-slate-200'
+                      : 'bg-slate-800 text-sky-300 border-slate-700'
+                  }`}
                 >
                   {mg}
                 </span>
@@ -343,20 +379,24 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
           </div>
 
           {/* Stopwatch & Finish Workout Button */}
-          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full lg:w-auto">
             {/* Live Stopwatch HUD */}
-            <div className="flex items-center gap-3 bg-slate-900/90 border border-slate-700/80 px-4 py-2.5 rounded-2xl shadow-inner">
-              <Clock className="w-5 h-5 text-sky-400" />
+            <div className={`flex items-center gap-3 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl border shadow-inner ${innerBg}`}>
+              <Clock className="w-5 h-5 text-sky-500 shrink-0" />
               <div className="text-left">
                 <span className="text-[10px] text-slate-400 block">زمان جلسه</span>
-                <span className="text-lg font-black font-mono text-white tracking-wider">
+                <span className="text-base sm:text-lg font-black font-mono tracking-wider">
                   {formatTime(workoutDuration)}
                 </span>
               </div>
 
               <button
                 onClick={() => setIsTimerRunning(!isTimerRunning)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isLight
+                    ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white'
+                }`}
                 title={isTimerRunning ? 'توقف موقت تایمر' : 'ادامه تایمر'}
               >
                 {isTimerRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -367,7 +407,7 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
             <button
               id="tracker-finish-btn"
               onClick={handleFinishWorkout}
-              className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-black font-bold shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+              className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-black font-bold shadow-lg shadow-emerald-500/20 transition-all cursor-pointer text-xs sm:text-sm"
             >
               <Trophy className="w-4 h-4" />
               <span>پایان جلسه و ثبت گزارش</span>
@@ -376,14 +416,14 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
         </div>
 
         {/* Progress Bar */}
-        <div className="mt-5 pt-3 border-t border-slate-800/80 space-y-1.5">
-          <div className="flex items-center justify-between text-xs text-slate-300">
+        <div className="mt-4 sm:mt-5 pt-3 border-t border-slate-300 dark:border-slate-800/80 space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
             <span>
               پیشرفت ست‌ها: {toPersianDigits(completedSetsCount)} از {toPersianDigits(totalSetsCount)} ست
             </span>
-            <span className="font-bold text-amber-400 font-mono">{toPersianDigits(progressPercent)}٪</span>
+            <span className="font-bold text-amber-500 font-mono">{toPersianDigits(progressPercent)}٪</span>
           </div>
-          <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+          <div className="w-full h-2 bg-slate-200 dark:bg-slate-950 rounded-full overflow-hidden border border-slate-300 dark:border-slate-800">
             <div
               className="h-full bg-gradient-to-r from-amber-500 to-sky-400 transition-all duration-300 rounded-full"
               style={{ width: `${progressPercent}%` }}
@@ -392,76 +432,87 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
         </div>
       </div>
 
-      {/* Floating Active Rest Countdown Widget (when rest is active) */}
+      {/* Floating / Embedded Rest Countdown Timer */}
       {isRestActive && (
-        <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 z-50 sm:w-96 bg-[#161b26] border-2 border-amber-500/50 rounded-2xl p-4 shadow-2xl animate-in slide-in-from-bottom-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
-                <Timer className="w-6 h-6 animate-pulse" />
-              </div>
-              <div>
-                <span className="text-[11px] text-slate-400 block">زمان استراحت بین ست‌ها</span>
-                <span className="text-2xl font-black font-mono text-amber-400">
-                  {toPersianDigits(restRemaining)}s
+        <div
+          className={`border rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 transition-all animate-in fade-in slide-in-from-top-2 ${
+            isLight
+              ? 'bg-amber-50 border-amber-300 text-amber-950 shadow-lg'
+              : 'bg-gradient-to-r from-amber-500/20 via-[#181d2a] to-amber-500/20 border-amber-500/50 shadow-2xl'
+          }`}
+        >
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-black flex items-center justify-center font-black shadow-md shrink-0">
+              <Timer className="w-6 h-6 animate-spin" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <h4 className="text-xs sm:text-sm font-bold flex items-center gap-1.5">
+                <span>تایمر استراحت بین ست‌ها</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-mono">
+                  RP Scientific Rest
                 </span>
-              </div>
+              </h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                برای ریکاوری آدنوزین تری‌فسفات (ATP) و آمادگی عضله هدف صبور باشید
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+            <div className="text-center font-mono font-black text-2xl sm:text-3xl text-amber-500">
+              {toPersianDigits(restRemaining)} <span className="text-xs font-normal">ثانیه</span>
             </div>
 
             <div className="flex items-center gap-1.5">
               <button
-                onClick={() => adjustRest(-15)}
-                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-mono"
-                title="کاهش ۱۵ ثانیه"
+                onClick={() => addRestTime(30)}
+                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                  isLight
+                    ? 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300'
+                    : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'
+                }`}
               >
-                -۱۵
+                +۳۰ ثانیه
               </button>
+
               <button
-                onClick={() => adjustRest(30)}
-                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-mono"
-                title="افزایش ۳۰ ثانیه"
+                onClick={cancelRestTimer}
+                className="px-3 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold transition-all cursor-pointer"
               >
-                +۳۰
-              </button>
-              <button
-                onClick={skipRest}
-                className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg text-xs"
-              >
-                رد کردن
+                انصراف
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Exercises Execution Cards */}
+      {/* Exercises List */}
       <div className="space-y-4">
         {exercisesState.map((exercise, exIdx) => (
           <div
             key={exIdx}
-            className={`bg-[#141924] border rounded-3xl p-4 sm:p-6 transition-all shadow-lg ${
-              exercise.skipped
-                ? 'border-slate-800 opacity-60'
-                : 'border-slate-800 hover:border-slate-700'
+            className={`border rounded-3xl p-4 sm:p-6 transition-all ${cardBg} ${
+              exercise.skipped ? 'opacity-60' : ''
             }`}
           >
             {/* Exercise Header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <span className="w-8 h-8 rounded-xl bg-slate-800 text-amber-400 border border-slate-700 flex items-center justify-center font-bold text-sm font-mono">
-                  {exIdx + 1}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/30 flex items-center justify-center font-bold text-sm font-mono shrink-0">
+                  {toPersianDigits(exIdx + 1)}
                 </span>
 
-                <div>
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <span>{exercise.exerciseName}</span>
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-bold flex items-center gap-2 truncate">
+                    <span className="truncate">{exercise.exerciseName}</span>
                     {exercise.skipped && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500">
                         رد شده
                       </span>
                     )}
                   </h3>
-                  <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5 font-mono">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] sm:text-xs text-slate-400 mt-0.5 font-mono">
                     <span>هدف: {toPersianDigits(exercise.targetSets)} ست × {exercise.targetReps}</span>
                     <span>• استراحت: {toPersianDigits(exercise.restSeconds)} ثانیه</span>
                     {exercise.tempo && <span>• تمپو: {exercise.tempo}</span>}
@@ -470,71 +521,85 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
               </div>
 
               {/* Action Buttons: Replace / Skip */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => {
                     setReplacingExIdx(exIdx);
                     setReplacementName('');
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs flex items-center gap-1 cursor-pointer"
+                  className={`px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 cursor-pointer ${
+                    isLight
+                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
                 >
-                  <RefreshCw className="w-3 h-3 text-sky-400" />
-                  <span>جایگزینی حرکت</span>
+                  <RefreshCw className="w-3 h-3 text-sky-500" />
+                  <span>جایگزینی</span>
                 </button>
 
                 <button
                   onClick={() => handleToggleSkipExercise(exIdx)}
                   className={`px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 cursor-pointer ${
                     exercise.skipped
-                      ? 'bg-amber-500/20 text-amber-300'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-400'
+                      ? 'bg-amber-500/20 text-amber-500'
+                      : isLight
+                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-400'
                   }`}
                 >
                   <SkipForward className="w-3 h-3" />
-                  <span>{exercise.skipped ? 'فعال‌سازی مجدد' : 'رد کردن حرکت'}</span>
+                  <span>{exercise.skipped ? 'فعال‌سازی' : 'رد کردن'}</span>
                 </button>
               </div>
             </div>
 
             {/* Notes if available */}
             {exercise.notes && (
-              <p className="text-xs text-slate-400 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80 my-3 leading-relaxed">
+              <p className={`text-xs p-2.5 rounded-xl border my-3 leading-relaxed ${innerBg}`}>
                 💡 {exercise.notes}
               </p>
             )}
 
-            {/* Interactive Sets Table */}
+            {/* Interactive Sets Table with responsive layout */}
             {!exercise.skipped && (
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full text-right text-xs">
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-right text-xs min-w-[420px]">
                   <thead>
-                    <tr className="text-slate-400 border-b border-slate-800/80 pb-2">
-                      <th className="pb-2 w-12 text-center">ست</th>
-                      <th className="pb-2">وزنه (کیلوگرم)</th>
-                      <th className="pb-2">تعداد تکرار</th>
+                    <tr className="text-slate-400 border-b border-slate-200 dark:border-slate-800/80 pb-2 text-[11px]">
+                      <th className="pb-2 w-10 text-center">ست</th>
+                      <th className="pb-2">وزنه (kg)</th>
+                      <th className="pb-2">تکرار</th>
                       <th className="pb-2 text-center">RPE / RIR</th>
-                      <th className="pb-2 text-center w-24">تکمیل ست</th>
+                      <th className="pb-2 text-center w-24">ثبت ست</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/50">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
                     {exercise.sets.map((s, setIdx) => (
                       <tr
                         key={setIdx}
                         className={`transition-colors ${
-                          s.completed ? 'bg-emerald-500/5' : 'hover:bg-slate-900/40'
+                          s.completed
+                            ? isLight
+                              ? 'bg-emerald-50/60'
+                              : 'bg-emerald-500/5'
+                            : ''
                         }`}
                       >
                         {/* Set Number */}
-                        <td className="py-2.5 text-center font-mono font-bold text-slate-300">
+                        <td className="py-2.5 text-center font-mono font-bold text-slate-400">
                           {toPersianDigits(s.setNumber)}
                         </td>
 
                         {/* Weight Stepper */}
                         <td className="py-2.5">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1">
                             <button
                               onClick={() => updateSetActual(exIdx, setIdx, 'actualWeightKg', -2.5, 0)}
-                              className="w-6 h-6 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold"
+                              className={`w-6 h-6 rounded-md flex items-center justify-center font-bold ${
+                                isLight
+                                  ? 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                              }`}
                             >
                               -
                             </button>
@@ -551,24 +616,35 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
                                   0
                                 )
                               }
-                              className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-center font-mono font-bold text-white text-xs"
+                              className={`w-14 border rounded-lg px-1.5 py-1 text-center font-mono font-bold text-xs ${
+                                isLight
+                                  ? 'bg-white border-slate-300 text-slate-900'
+                                  : 'bg-slate-900 border-slate-700 text-white'
+                              }`}
                             />
                             <button
                               onClick={() => updateSetActual(exIdx, setIdx, 'actualWeightKg', 2.5, 0)}
-                              className="w-6 h-6 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold"
+                              className={`w-6 h-6 rounded-md flex items-center justify-center font-bold ${
+                                isLight
+                                  ? 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                              }`}
                             >
                               +
                             </button>
-                            <span className="text-[10px] text-slate-500">kg</span>
                           </div>
                         </td>
 
                         {/* Reps Stepper */}
                         <td className="py-2.5">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1">
                             <button
                               onClick={() => updateSetActual(exIdx, setIdx, 'actualReps', -1, 1)}
-                              className="w-6 h-6 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold"
+                              className={`w-6 h-6 rounded-md flex items-center justify-center font-bold ${
+                                isLight
+                                  ? 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                              }`}
                             >
                               -
                             </button>
@@ -584,49 +660,68 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
                                   1
                                 )
                               }
-                              className="w-12 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-center font-mono font-bold text-white text-xs"
+                              className={`w-12 border rounded-lg px-1.5 py-1 text-center font-mono font-bold text-xs ${
+                                isLight
+                                  ? 'bg-white border-slate-300 text-slate-900'
+                                  : 'bg-slate-900 border-slate-700 text-white'
+                              }`}
                             />
                             <button
                               onClick={() => updateSetActual(exIdx, setIdx, 'actualReps', 1, 1)}
-                              className="w-6 h-6 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold"
+                              className={`w-6 h-6 rounded-md flex items-center justify-center font-bold ${
+                                isLight
+                                  ? 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                              }`}
                             >
                               +
                             </button>
-                            <span className="text-[10px] text-slate-500">reps</span>
                           </div>
                         </td>
 
                         {/* RPE & RIR selector */}
                         <td className="py-2.5 text-center">
-                          <div className="flex items-center justify-center gap-1 font-mono text-[11px]">
-                            <span className="text-slate-400">RIR:</span>
+                          <div className="inline-flex items-center gap-1">
                             <select
-                              value={s.rir || 2}
+                              value={s.rpe || 8}
                               onChange={(e) =>
-                                updateSetActual(exIdx, setIdx, 'rir', Number(e.target.value) - (s.rir || 2))
+                                updateSetActual(
+                                  exIdx,
+                                  setIdx,
+                                  'rpe',
+                                  Number(e.target.value) - (s.rpe || 8),
+                                  1
+                                )
                               }
-                              className="bg-slate-900 border border-slate-700 rounded-md px-1.5 py-0.5 text-sky-400 text-xs"
+                              className={`border rounded-md px-1.5 py-0.5 text-[11px] font-mono font-bold ${
+                                isLight
+                                  ? 'bg-white border-slate-300 text-slate-800'
+                                  : 'bg-slate-900 border-slate-700 text-slate-200'
+                              }`}
                             >
-                              <option value={0}>۰ (Failure)</option>
-                              <option value={1}>۱ تکرار تا خستگی</option>
-                              <option value={2}>۲ تکرار ذخیره</option>
-                              <option value={3}>۳ تکرار ذخیره</option>
+                              <option value="6">RPE 6 (RIR 4)</option>
+                              <option value="7">RPE 7 (RIR 3)</option>
+                              <option value="8">RPE 8 (RIR 2)</option>
+                              <option value="9">RPE 9 (RIR 1)</option>
+                              <option value="10">RPE 10 (Failure)</option>
                             </select>
                           </div>
                         </td>
 
-                        {/* Completion Checkbox */}
+                        {/* Complete Checkbox Button */}
                         <td className="py-2.5 text-center">
                           <button
-                            id={`check-set-${exIdx}-${setIdx}`}
-                            onClick={() => handleToggleSet(exIdx, setIdx)}
-                            className={`w-9 h-9 rounded-xl border flex items-center justify-center mx-auto transition-all cursor-pointer ${
+                            onClick={() => handleToggleSetComplete(exIdx, setIdx)}
+                            className={`w-full py-1.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                               s.completed
-                                ? 'bg-emerald-500 text-black border-emerald-400 shadow-md shadow-emerald-500/20'
-                                : 'bg-slate-900 border-slate-700 text-transparent hover:border-amber-500'
+                                ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20'
+                                : isLight
+                                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
+                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
                             }`}
                           >
-                            <Check className="w-5 h-5 stroke-[3]" />
+                            <Check className="w-3.5 h-3.5" />
+                            <span>{s.completed ? 'انجام شد' : 'ثبت'}</span>
                           </button>
                         </td>
                       </tr>
@@ -639,50 +734,111 @@ export const WorkoutTrackerView: React.FC<WorkoutTrackerViewProps> = ({
         ))}
       </div>
 
-      {/* Exercise Replacement Modal */}
+      {/* Session Notes & Rating Bottom Box */}
+      <div className={`border rounded-3xl p-5 sm:p-6 space-y-4 ${cardBg}`}>
+        <h4 className="text-sm font-bold flex items-center gap-2">
+          <MessageSquare className="w-4 h-4 text-amber-500" />
+          <span>یادداشت‌ها و فیدبک پایان تمرین</span>
+        </h4>
+
+        <div className="space-y-3">
+          <textarea
+            value={sessionNotes}
+            onChange={(e) => setSessionNotes(e.target.value)}
+            placeholder="احساس سوزش عضلانی، پمپ عضلانی، درد مفاصل یا نکاتی برای جلسه بعد..."
+            rows={2}
+            className={`w-full border rounded-2xl p-3 text-xs leading-relaxed focus:outline-none focus:border-amber-500 ${
+              isLight
+                ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400'
+                : 'bg-slate-900 border-slate-700 text-white placeholder:text-slate-500'
+            }`}
+          ></textarea>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400">کیفیت و فشار جلسه:</span>
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => setSessionRating(star)}
+                    className="p-1 cursor-pointer"
+                  >
+                    <Star
+                      className={`w-4 h-4 ${
+                        star <= sessionRating
+                          ? 'text-amber-400 fill-amber-400'
+                          : 'text-slate-500'
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={handleFinishWorkout}
+              className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs shadow-md transition-all cursor-pointer"
+            >
+              ثبت نهایی و انتقال به داشبورد
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Exercise Replace Modal */}
       {replacingExIdx !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-[#141924] border border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <RefreshCw className="w-4 h-4 text-sky-400" />
-              جایگزینی حرکت با تمرین ایمن‌تر یا معادل
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className={`border rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl ${cardBg}`}>
+            <h3 className="text-base font-bold flex items-center gap-2">
+              <RefreshCw className="w-5 h-5 text-sky-500" />
+              <span>جایگزینی حرکت تمرینی</span>
             </h3>
-            <p className="text-xs text-slate-400">
-              حرکت فعلی: <strong>{exercisesState[replacingExIdx]?.exerciseName}</strong>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              نام حرکت جایگزین (مثلاً در صورت اشغال بودن دستگاه یا احساس درد مفصل) را وارد کنید:
             </p>
 
             <input
               type="text"
               value={replacementName}
               onChange={(e) => setReplacementName(e.target.value)}
-              placeholder="نام حرکت جایگزین (مثال: پرس بالا سینه دمبل)"
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500"
+              placeholder="مثلاً: زیربغل دمبل تک‌خم یا سیمکش قایقی..."
+              className={`w-full border rounded-xl p-3 text-xs focus:outline-none focus:border-amber-500 ${
+                isLight
+                  ? 'bg-white border-slate-300 text-slate-900'
+                  : 'bg-slate-900 border-slate-700 text-white'
+              }`}
             />
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 onClick={() => setReplacingExIdx(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs"
+                className={`px-4 py-2 rounded-xl text-xs font-bold ${
+                  isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-800 text-slate-300'
+                }`}
               >
                 انصراف
               </button>
               <button
                 onClick={handleConfirmReplace}
-                className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-black font-bold text-xs"
+                className="px-4 py-2 rounded-xl bg-amber-500 text-black font-bold text-xs"
               >
-                تایید جایگزینی
+                تأیید جایگزینی
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Workout Completion Report Modal */}
+      {/* Finished Summary Modal */}
       {completedSummaryLog && (
         <WorkoutSummaryModal
-          sessionLog={completedSummaryLog}
-          onClose={() => setCompletedSummaryLog(null)}
-          onNavigateToDashboard={onNavigateToDashboard}
+          log={completedSummaryLog}
+          onClose={() => {
+            setCompletedSummaryLog(null);
+            onNavigateToDashboard();
+          }}
         />
       )}
     </div>

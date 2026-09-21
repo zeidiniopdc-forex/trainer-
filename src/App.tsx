@@ -25,6 +25,7 @@ import {
   saveCalendarReminders,
 } from './utils/storage';
 import { Header, ActiveTab } from './components/Header';
+import { HomeDashboardView } from './components/HomeDashboardView';
 import { AthleteProfileView } from './components/AthleteProfileView';
 import { PromptGeneratorView } from './components/PromptGeneratorView';
 import { JsonImportView } from './components/JsonImportView';
@@ -35,8 +36,8 @@ import { AthleteManagerModal } from './components/AthleteManagerModal';
 import { BottomNavBar } from './components/BottomNavBar';
 
 export const App: React.FC = () => {
-  // Navigation State
-  const [activeTab, setActiveTab] = useState<ActiveTab>('profile');
+  // Navigation State - Default to 'home' hub dashboard
+  const [activeTab, setActiveTab] = useState<ActiveTab>('home');
   const [isAthleteModalOpen, setIsAthleteModalOpen] = useState(false);
 
   // Theme State ('dark' | 'light')
@@ -179,7 +180,7 @@ export const App: React.FC = () => {
 
   return (
     <div
-      className={`min-h-screen flex flex-col font-sans selection:bg-amber-500 selection:text-black transition-colors ${
+      className={`min-h-screen flex flex-col font-sans selection:bg-amber-500 selection:text-black transition-colors w-full max-w-full overflow-x-hidden ${
         isLight
           ? 'bg-[#f8fafc] text-slate-900'
           : 'bg-[#0d1017] text-slate-100'
@@ -198,7 +199,23 @@ export const App: React.FC = () => {
       />
 
       {/* Main Screen Content Viewport */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-24 lg:pb-12">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-24 lg:pb-12 overflow-x-hidden">
+        
+        {/* 1. Home Dashboard Hub View */}
+        {activeTab === 'home' && (
+          <HomeDashboardView
+            athletes={athletes}
+            activeAthlete={profile}
+            onSelectAthlete={handleSelectAthlete}
+            onOpenAthleteManager={() => setIsAthleteModalOpen(true)}
+            onNavigateTab={(tab) => setActiveTab(tab)}
+            activeProgram={activeProgram}
+            sessionLogs={sessionLogs}
+            theme={theme}
+          />
+        )}
+
+        {/* 2. Athlete Profile Dedicated Page */}
         {activeTab === 'profile' && (
           <AthleteProfileView
             profile={profile}
@@ -209,6 +226,7 @@ export const App: React.FC = () => {
           />
         )}
 
+        {/* 3. Smart Prompt Generator Dedicated Page */}
         {activeTab === 'prompt' && (
           <PromptGeneratorView
             profile={profile}
@@ -217,6 +235,7 @@ export const App: React.FC = () => {
           />
         )}
 
+        {/* 4. Programs & JSON Import Dedicated Page */}
         {activeTab === 'import' && (
           <JsonImportView
             programs={programs}
@@ -227,6 +246,7 @@ export const App: React.FC = () => {
           />
         )}
 
+        {/* 5. Live Workout Tracker Dedicated Page */}
         {activeTab === 'tracker' && (
           <WorkoutTrackerView
             activeProgram={activeProgram}
@@ -234,9 +254,11 @@ export const App: React.FC = () => {
             initialDayIndex={activeDayIndex}
             onFinishSession={handleAddSessionLog}
             onNavigateToDashboard={() => setActiveTab('dashboard')}
+            theme={theme}
           />
         )}
 
+        {/* 6. Hypertrophy Progress & Analysis Dashboard Dedicated Page */}
         {activeTab === 'dashboard' && (
           <ProgressDashboardView
             profile={profile}
@@ -246,6 +268,7 @@ export const App: React.FC = () => {
           />
         )}
 
+        {/* 7. Jalali Calendar & Scheduling Dedicated Page */}
         {activeTab === 'calendar' && (
           <JalaliCalendarView
             reminders={reminders}
@@ -302,4 +325,3 @@ export const App: React.FC = () => {
 };
 
 export default App;
-

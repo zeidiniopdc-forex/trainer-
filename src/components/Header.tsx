@@ -15,6 +15,7 @@ import {
   Moon,
   Users,
   ChevronDown,
+  LayoutDashboard,
 } from 'lucide-react';
 import { getCurrentJalaliDate, formatJalaliDate, toPersianDigits } from '../utils/jalali';
 import { soundManager } from '../utils/sound';
@@ -22,6 +23,7 @@ import { getNotifications } from '../utils/storage';
 import { AppNotification, AthleteProfile } from '../types';
 
 export type ActiveTab =
+  | 'home'
   | 'profile'
   | 'prompt'
   | 'import'
@@ -55,7 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [notifications, setNotifications] = useState<AppNotification[]>(getNotifications());
 
   const currentJalali = getCurrentJalaliDate();
-  const dateFormatted = formatJalaliDate(currentJalali, 'full');
+  const dateFormatted = formatJalaliDate(currentJalali, 'short');
 
   const toggleSound = () => {
     const next = !soundEnabled;
@@ -71,11 +73,12 @@ export const Header: React.FC<HeaderProps> = ({
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const navItems = [
+    { id: 'home' as ActiveTab, label: 'داشبورد اصلی', icon: LayoutDashboard },
     { id: 'profile' as ActiveTab, label: 'پروفایل شاگرد', icon: User },
     { id: 'prompt' as ActiveTab, label: 'پرامپت هوشمند', icon: Sparkles },
     { id: 'import' as ActiveTab, label: 'برنامه‌ها و JSON', icon: FileCode2 },
     { id: 'tracker' as ActiveTab, label: 'اجرای تمرین', icon: PlayCircle, highlight: isWorkoutInProgress },
-    { id: 'dashboard' as ActiveTab, label: 'داشبورد و آنالیز', icon: BarChart3 },
+    { id: 'dashboard' as ActiveTab, label: 'آنالیز هایپرتروفی', icon: BarChart3 },
     { id: 'calendar' as ActiveTab, label: 'تقویم جلالی', icon: Calendar },
   ];
 
@@ -83,7 +86,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header
-      className={`sticky top-0 z-40 backdrop-blur-md border-b shadow-md transition-colors ${
+      className={`sticky top-0 z-40 backdrop-blur-md border-b shadow-md transition-colors w-full overflow-x-hidden ${
         isLight
           ? 'bg-white/95 border-slate-200 shadow-slate-200/50 text-slate-800'
           : 'bg-[#0d111a]/95 border-slate-800/80 shadow-black/40 text-slate-100'
@@ -91,83 +94,66 @@ export const Header: React.FC<HeaderProps> = ({
     >
       {/* Top Banner */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-20 gap-2">
+        <div className="flex items-center justify-between h-16 sm:h-18 gap-2">
           
-          {/* Logo & Persian Title */}
-          <div className="flex items-center gap-2.5">
-            <div className="relative flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 shadow-lg shadow-amber-500/20 border border-amber-400/40 shrink-0">
+          {/* Logo & Title (Clicking navigates to Home) */}
+          <div
+            onClick={() => setActiveTab('home')}
+            className="flex items-center gap-2 sm:gap-2.5 cursor-pointer min-w-0"
+          >
+            <div className="relative flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 shadow-lg shadow-amber-500/20 border border-amber-400/40 shrink-0">
               <Dumbbell className="w-5 h-5 sm:w-6 sm:h-6 text-black rotate-[-15deg]" />
-              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-sky-500 rounded-full flex items-center justify-center border border-white">
-                <Zap className="w-2.5 h-2.5 text-white" />
+              <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-sky-500 rounded-full flex items-center justify-center border border-white">
+                <Zap className="w-2 h-2 text-white" />
               </div>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <h1 className={`text-base sm:text-lg font-bold tracking-tight flex items-center gap-1.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                  <span>دستیار هوشمند مربیگری</span>
+                <h1 className={`text-sm sm:text-base md:text-lg font-black tracking-tight truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  دستیار مربیگری
                 </h1>
-                <span className="text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                <span className="text-[10px] sm:text-[11px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
                   AI Coach
                 </span>
               </div>
-              <p className={`text-[11px] hidden sm:block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                طراحی برنامه علمی و مدیریت ورزشکاران بر اساس اصول RP و Schoenfeld
+              <p className={`text-[10px] hidden md:block ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                طراحی برنامه علمی و مدیریت شاگردان
               </p>
             </div>
           </div>
 
-          {/* Active Athlete Quick Switcher */}
+          {/* Active Athlete Quick Switcher Button */}
           <button
             onClick={onOpenAthleteManager}
-            className={`flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-2xl border transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-2xl border transition-all cursor-pointer shrink-0 max-w-[170px] sm:max-w-[220px] ${
               isLight
-                ? 'bg-amber-50 border-amber-200 text-amber-900 hover:bg-amber-100'
+                ? 'bg-amber-50 border-amber-200 text-amber-950 hover:bg-amber-100'
                 : 'bg-gradient-to-r from-amber-500/10 to-amber-500/20 border-amber-500/40 text-amber-300 hover:border-amber-400'
             }`}
-            title="مدیریت شاگردان و تغییر پروفایل"
+            title="مدیریت شاگردان و تغییر سریع پروفایل"
           >
-            <div className="w-7 h-7 rounded-xl bg-amber-500 text-black flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-xl bg-amber-500 text-black flex items-center justify-center font-black text-xs shrink-0 shadow-sm">
               {activeAthlete.name.charAt(0) || 'ش'}
             </div>
-            <div className="text-right">
-              <div className="text-[10px] text-slate-400 font-medium leading-none">شاگرد انتخابی:</div>
-              <div className="text-xs sm:text-sm font-bold truncate max-w-[110px] sm:max-w-[150px]">
+            <div className="text-right min-w-0 flex-1">
+              <div className="text-[9px] sm:text-[10px] text-slate-400 font-medium leading-none truncate">شاگرد:</div>
+              <div className="text-xs sm:text-sm font-bold truncate">
                 {activeAthlete.name}
               </div>
             </div>
-            <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+            <ChevronDown className="w-3.5 h-3.5 opacity-70 shrink-0" />
           </button>
 
-          {/* Center Info: Jalali Date */}
-          <div className={`hidden xl:flex items-center gap-4 px-3.5 py-1.5 rounded-xl text-xs border ${
-            isLight
-              ? 'bg-slate-100/90 border-slate-200'
-              : 'bg-slate-900/80 border-slate-800'
-          }`}>
-            <div className={`flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-              <Calendar className="w-4 h-4 text-sky-500" />
-              <span>{dateFormatted}</span>
-            </div>
-            {activeProgramName && (
-              <div className={`flex items-center gap-1.5 border-r pr-4 font-medium ${
-                isLight ? 'border-slate-300 text-amber-700' : 'border-slate-700 text-amber-400'
-              }`}>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span className="truncate max-w-[180px]">{activeProgramName}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Action Tools: Theme Toggle, Sound Toggle, Notifications */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Right Action Tools: Theme Toggle, Sound Toggle, Notifications */}
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             
             {/* Theme Toggle (Light / Dark) */}
             <button
               id="header-theme-toggle-btn"
               onClick={onToggleTheme}
               title={isLight ? 'تغییر به تم تاریک' : 'تغییر به تم روشن'}
-              className={`p-2 sm:p-2.5 rounded-xl border transition-all cursor-pointer ${
+              className={`p-2 rounded-xl border transition-all cursor-pointer ${
                 isLight
                   ? 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200 hover:text-slate-900'
                   : 'bg-slate-800/80 text-amber-300 border-slate-700 hover:bg-slate-700 hover:text-white'
@@ -185,7 +171,7 @@ export const Header: React.FC<HeaderProps> = ({
               id="header-sound-toggle-btn"
               onClick={toggleSound}
               title={soundEnabled ? 'صداهای راهنما فعال است' : 'صداها غیرفعال است'}
-              className={`p-2 sm:p-2.5 rounded-xl border transition-all cursor-pointer ${
+              className={`p-2 rounded-xl border transition-all cursor-pointer ${
                 soundEnabled
                   ? isLight
                     ? 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200'
@@ -203,7 +189,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 id="header-notifications-btn"
                 onClick={() => setShowNotifs(!showNotifs)}
-                className={`relative p-2 sm:p-2.5 rounded-xl border transition-colors cursor-pointer ${
+                className={`relative p-2 rounded-xl border transition-colors cursor-pointer ${
                   isLight
                     ? 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
                     : 'bg-slate-800/70 border-slate-700/80 text-slate-300 hover:text-white hover:bg-slate-800'
@@ -220,31 +206,31 @@ export const Header: React.FC<HeaderProps> = ({
               {/* Notification Dropdown */}
               {showNotifs && (
                 <div
-                  className={`absolute left-0 sm:left-auto sm:right-0 mt-2 w-80 sm:w-96 border rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 ${
+                  className={`absolute left-0 sm:left-auto sm:right-0 mt-2 w-72 sm:w-80 border rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 ${
                     isLight
                       ? 'bg-white border-slate-200 text-slate-800'
                       : 'bg-[#161b26] border-slate-700/80 text-slate-100'
                   }`}
                 >
                   <div className={`flex items-center justify-between pb-3 border-b ${isLight ? 'border-slate-100' : 'border-slate-800'}`}>
-                    <h3 className={`text-sm font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    <h3 className={`text-xs sm:text-sm font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                       <Bell className="w-4 h-4 text-amber-500" />
-                      اعلان‌ها و توصیه‌های هوش مصنوعی
+                      اعلان‌ها و توصیه‌ها
                     </h3>
                     {unreadCount > 0 && (
                       <button
                         onClick={markAllRead}
-                        className="text-xs text-sky-500 hover:underline cursor-pointer"
+                        className="text-xs text-sky-500 hover:underline cursor-pointer font-bold"
                       >
                         خوانده شد
                       </button>
                     )}
                   </div>
-                  <div className={`divide-y max-h-72 overflow-y-auto mt-2 ${isLight ? 'divide-slate-100' : 'divide-slate-800'}`}>
+                  <div className={`divide-y max-h-64 overflow-y-auto mt-2 ${isLight ? 'divide-slate-100' : 'divide-slate-800'}`}>
                     {notifications.map((n) => (
                       <div
                         key={n.id}
-                        className={`py-2.5 px-2 rounded-lg transition-colors ${
+                        className={`py-2 px-1.5 rounded-lg transition-colors ${
                           n.read
                             ? 'opacity-70'
                             : isLight
@@ -257,7 +243,7 @@ export const Header: React.FC<HeaderProps> = ({
                             {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>}
                             {n.title}
                           </h4>
-                          <span className={`text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-400'}`}>{n.timestamp}</span>
+                          <span className="text-[10px] text-slate-400">{n.timestamp}</span>
                         </div>
                         <p className={`text-xs mt-1 leading-relaxed ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>{n.message}</p>
                       </div>
@@ -282,9 +268,9 @@ export const Header: React.FC<HeaderProps> = ({
                 key={item.id}
                 id={`nav-tab-${item.id}`}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap transition-all cursor-pointer ${
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-amber-500 text-black shadow-md shadow-amber-500/20 font-bold'
+                    ? 'bg-amber-500 text-black shadow-md shadow-amber-500/20 font-black'
                     : isLight
                       ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                       : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
@@ -294,7 +280,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <span>{item.label}</span>
                 {item.highlight && (
                   <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? 'bg-black text-amber-400' : 'bg-emerald-500 text-black font-bold'}`}>
-                    فعال
+                    تمرین فعال
                   </span>
                 )}
               </button>
@@ -305,4 +291,3 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
-
