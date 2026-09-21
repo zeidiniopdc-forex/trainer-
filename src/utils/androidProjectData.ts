@@ -50,11 +50,8 @@ jobs:
         with:
           gradle-version: '8.5'
 
-      - name: Make Gradle Wrapper Executable
-        run: chmod +x gradlew
-
       - name: Build Debug APK with Gradle
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        run: gradle assembleDebug --stacktrace --no-daemon
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
