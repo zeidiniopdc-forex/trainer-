@@ -48,9 +48,17 @@ jobs:
         with:
           gradle-version: '8.8'
 
-      - name: Make Gradlew Executable
+      - name: Configure gradle.properties and Gradle Wrapper
         run: |
+          echo "org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8" > gradle.properties
+          echo "android.useAndroidX=true" >> gradle.properties
+          echo "android.enableJetifier=true" >> gradle.properties
+          echo "android.nonTransitiveRClass=true" >> gradle.properties
+          echo "kotlin.code.style=official" >> gradle.properties
+          echo "org.gradle.configuration-cache=false" >> gradle.properties
           gradle wrapper --gradle-version 8.8
+          chmod +x gradlew
+          ./gradlew wrapper --gradle-version 8.8
           chmod +x gradlew
 
       - name: Build with Gradle
@@ -184,6 +192,7 @@ ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
     content: `# Project-wide Gradle settings.
 org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
 android.useAndroidX=true
+android.enableJetifier=true
 android.nonTransitiveRClass=true
 kotlin.code.style=official
 org.gradle.configuration-cache=false
