@@ -392,114 +392,114 @@ dependencies {
     path: 'app/src/main/java/com/aicoach/fitness/presentation/MainActivity.kt',
     name: 'MainActivity.kt',
     language: 'kotlin',
-    description: 'اکتیویتی اصلی نیتیو اندروید با رابط کاربری مدرن Jetpack Compose و تم بدنسازی لوکس',
+    description: 'اکتیویتی اصلی نیتیو اندروید با پشتیبانی کامل از وب‌ویو آفلاین و تمامی قابلیت‌های پیش‌نمایش',
     content: `package com.aicoach.fitness.presentation
 
+import android.annotation.SuppressLint
 import android.os.Bundle
+import android.view.ViewGroup
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material3.*
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.aicoach.fitness.presentation.theme.*
+import androidx.compose.ui.viewinterop.AndroidView
+import com.aicoach.fitness.presentation.theme.AIFitnessCoachTheme
+import com.aicoach.fitness.presentation.theme.CharcoalDark
 
 class MainActivity : ComponentActivity() {
+
+    private var webView: WebView? = null
+
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (webView?.canGoBack() == true) {
+                    webView?.goBack()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+
         setContent {
             AIFitnessCoachTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = CharcoalDark
                 ) {
-                    FitnessAppMainContent()
+                    FitnessAppContainer(
+                        onWebViewCreated = { webView = it }
+                    )
                 }
             }
         }
     }
 }
 
+@SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun FitnessAppMainContent() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(90.dp)
-                .background(GoldAccent.copy(alpha = 0.15f), shape = RoundedCornerShape(24.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.FitnessCenter,
-                contentDescription = "Fitness Icon",
-                tint = GoldAccent,
-                modifier = Modifier.size(48.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(
-            text = "دستیار هوشمند مربیگری بدنسازی",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            color = TextPrimary,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "AI Fitness Coach Assistant",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            color = ElectricBlue,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = CharcoalCard)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "سیستم آماده کار و متصل به دیتابیس Room",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = GoldAccent
+fun FitnessAppContainer(
+    onWebViewCreated: (WebView) -> Unit
+) {
+    AndroidView(
+        modifier = Modifier.fillMaxSize(),
+        factory = { context ->
+            WebView(context).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
                 )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "طراحی علمی بر اساس اصول دکتر شونفلد، مایک اسرافل (RP) و هرم اریک هلمز",
-                    fontSize = 11.sp,
-                    color = TextSecondary,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 18.sp
-                )
+                setBackgroundColor(0xFF0D1017.toInt())
+
+                settings.apply {
+                    javaScriptEnabled = true
+                    domStorageEnabled = true
+                    databaseEnabled = true
+                    allowFileAccess = true
+                    allowContentAccess = true
+                    useWideViewPort = true
+                    loadWithOverviewMode = true
+                    cacheMode = WebSettings.LOAD_DEFAULT
+                    setSupportZoom(false)
+                }
+
+                webChromeClient = WebChromeClient()
+                webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        view: WebView?,
+                        request: WebResourceRequest?
+                    ): Boolean {
+                        return false
+                    }
+                }
+
+                try {
+                    val assetList = context.assets.list("web")
+                    if (assetList != null && assetList.contains("index.html")) {
+                        loadUrl("file:///android_asset/web/index.html")
+                    } else {
+                        loadUrl("file:///android_asset/index.html")
+                    }
+                } catch (e: Exception) {
+                    loadUrl("file:///android_asset/web/index.html")
+                }
+
+                onWebViewCreated(this)
             }
         }
-    }
+    )
 }
 `,
   },
