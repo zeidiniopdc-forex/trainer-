@@ -27,7 +27,6 @@ on:
 
 permissions:
   contents: write
-  actions: read
 
 jobs:
   build:
@@ -44,21 +43,20 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle 8.8
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.8'
-          cache-disabled: true
 
-      - name: Generate and Validate Gradle Wrapper
+      - name: Make Gradlew Executable
         run: |
           gradle wrapper --gradle-version 8.8
-          chmod +x ./gradlew || true
+          chmod +x gradlew
 
-      - name: Build Debug APK with Gradle
-        run: gradle assembleDebug --stacktrace --no-daemon
+      - name: Build with Gradle
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
 
-      - name: Upload Debug APK Artifact
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: AI-Fitness-Coach-Assistant-Debug-APK
