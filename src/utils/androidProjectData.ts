@@ -45,14 +45,19 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Setup Gradle 8.5
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Gradle 8.8
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: '8.5'
+          gradle-version: '8.8'
 
       - name: Generate and Validate Gradle Wrapper
         run: |
-          gradle wrapper --gradle-version 8.5
+          gradle wrapper --gradle-version 8.8
           chmod +x ./gradlew || true
 
       - name: Build Debug APK with Gradle
