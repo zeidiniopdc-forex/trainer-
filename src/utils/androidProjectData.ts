@@ -44,11 +44,13 @@ jobs:
           distribution: 'temurin'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.8'
 
       - name: Configure gradle.properties and Gradle Wrapper
+        env:
+          GRADLE_OPTS: "-Dandroid.useAndroidX=true -Dandroid.enableJetifier=true -Dandroid.nonTransitiveRClass=true"
         run: |
           echo "org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8" > gradle.properties
           echo "android.useAndroidX=true" >> gradle.properties
@@ -62,6 +64,10 @@ jobs:
           chmod +x gradlew
 
       - name: Build with Gradle
+        env:
+          ORG_GRADLE_PROJECT_android.useAndroidX: "true"
+          ORG_GRADLE_PROJECT_android.enableJetifier: "true"
+          GRADLE_OPTS: "-Dandroid.useAndroidX=true -Dandroid.enableJetifier=true"
         run: ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Upload Debug APK
