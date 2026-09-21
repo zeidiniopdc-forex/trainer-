@@ -30,16 +30,23 @@ jobs:
         env:
           GRADLE_OPTS: "-Dandroid.useAndroidX=true -Dandroid.enableJetifier=true -Dandroid.nonTransitiveRClass=true"
         run: |
+          mkdir -p gradle/wrapper
           echo "org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8" > gradle.properties
           echo "android.useAndroidX=true" >> gradle.properties
           echo "android.enableJetifier=true" >> gradle.properties
           echo "android.nonTransitiveRClass=true" >> gradle.properties
           echo "kotlin.code.style=official" >> gradle.properties
           echo "org.gradle.configuration-cache=false" >> gradle.properties
-          if [ ! -f gradlew ]; then
-            gradle wrapper --gradle-version 8.8 || true
+
+          # Download gradle-wrapper.jar if missing
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ] || [ ! -s gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "Downloading gradle-wrapper.jar..."
+            curl -sSL --retry 3 --retry-delay 2 -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.8.0/gradle/wrapper/gradle-wrapper.jar || \
+            curl -sSL --retry 3 --retry-delay 2 -o gradle/wrapper/gradle-wrapper.jar https://github.com/gradle/gradle/raw/master/gradle/wrapper/gradle-wrapper.jar
           fi
+
           chmod +x gradlew || true
+
 
       - name: Build with Gradle
         env:
