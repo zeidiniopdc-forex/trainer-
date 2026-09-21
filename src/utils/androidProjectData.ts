@@ -50,6 +50,11 @@ jobs:
         with:
           gradle-version: '8.5'
 
+      - name: Generate and Validate Gradle Wrapper
+        run: |
+          gradle wrapper --gradle-version 8.5
+          chmod +x ./gradlew || true
+
       - name: Build Debug APK with Gradle
         run: gradle assembleDebug --stacktrace --no-daemon
 
