@@ -51,7 +51,7 @@ jobs:
 
       - name: Build Web Application Assets
         run: |
-          npm ci || npm install
+          npm install --legacy-peer-deps
           npm run build
           mkdir -p app/src/main/assets/web
           cp -r dist/* app/src/main/assets/web/
