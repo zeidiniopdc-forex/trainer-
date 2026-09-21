@@ -11,16 +11,18 @@ import {
   GitBranch,
   ShieldCheck,
   Smartphone,
-  Sparkles,
-  ExternalLink,
+  AlertTriangle,
+  Play,
+  Settings,
+  HelpCircle,
 } from 'lucide-react';
-import { ANDROID_PROJECT_FILES, AndroidFileTreeItem } from '../utils/androidProjectData';
+import { ANDROID_PROJECT_FILES } from '../utils/androidProjectData';
 import { soundManager } from '../utils/sound';
 
 export const AndroidExportView: React.FC = () => {
   const [selectedFileIndex, setSelectedFileIndex] = useState<number>(0);
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'files' | 'architecture' | 'checklist'>('files');
+  const [activeTab, setActiveTab] = useState<'guide' | 'files' | 'architecture' | 'checklist'>('guide');
 
   const selectedFile = ANDROID_PROJECT_FILES[selectedFileIndex] || ANDROID_PROJECT_FILES[0];
 
@@ -52,19 +54,19 @@ export const AndroidExportView: React.FC = () => {
       <div className="bg-gradient-to-l from-slate-900 via-[#151c2a] to-[#121622] border border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xl relative overflow-hidden">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-black shadow-lg shadow-emerald-500/20">
+            <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-black shadow-lg shadow-emerald-500/20">
               <Smartphone className="w-9 h-9" />
             </div>
 
             <div>
               <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-                <span>سورس‌کد پروژه نیتیو اندروید و پایپ‌لاین GitHub Actions</span>
+                <span>سورس‌کد نیتیو اندروید و بیلد خودکار در GitHub Actions</span>
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                  Clean Architecture
+                  Gradle 8.5 & Kotlin
                 </span>
               </h2>
               <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                کدهای Kotlin + Jetpack Compose، دیتابیس Room، ورک‌فلوهای بیلد APK و ساختار کامل مخزن گیت‌هاب
+                راهنمای گام‌به‌گام رفع مشکل بیلد گیت‌هاب، پیکربندی ورک‌فلوها و دانلود کامل پکیج پروژه
               </p>
             </div>
           </div>
@@ -75,17 +77,18 @@ export const AndroidExportView: React.FC = () => {
               className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-bold shadow-lg shadow-amber-500/20 transition-all cursor-pointer text-xs sm:text-sm"
             >
               <Download className="w-4 h-4" />
-              <span>دانلود پکیج کامل سورس‌کدها</span>
+              <span>دانلود کل ساختار پروژه</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* Sub-Nav for Android Suite */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto scrollbar-none">
         {[
-          { id: 'files' as const, label: 'مرورگر فایل‌های پروژه اندروید', icon: Code2 },
-          { id: 'architecture' as const, label: 'پایپ‌لاین بیلد APK و GitHub CI', icon: GitBranch },
+          { id: 'guide' as const, label: 'راهنمای رفع مشکل و فعال‌سازی بیلد GitHub Actions', icon: HelpCircle, alert: true },
+          { id: 'files' as const, label: 'مرورگر فایل‌های سورس پروژه اندروید', icon: Code2 },
+          { id: 'architecture' as const, label: 'پایپ‌لاین بیلد و معماری Clean', icon: GitBranch },
           { id: 'checklist' as const, label: 'چک‌لیست کنترل کیفیت و تست‌ها', icon: ShieldCheck },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -94,18 +97,106 @@ export const AndroidExportView: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap transition-all cursor-pointer ${
                 isSelected
-                  ? 'bg-slate-800 text-emerald-400 border border-emerald-500/30 shadow-sm'
+                  ? 'bg-slate-800 text-amber-400 border border-amber-500/30 shadow-sm'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Icon className={`w-4 h-4 ${isSelected ? 'text-emerald-400' : 'text-slate-400'}`} />
+              <Icon className={`w-4 h-4 ${isSelected ? 'text-amber-400' : 'text-slate-400'}`} />
               <span>{tab.label}</span>
+              {tab.alert && !isSelected && (
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+              )}
             </button>
           );
         })}
       </div>
+
+      {/* View 0: Dedicated Step-by-Step GitHub Actions Troubleshooting Guide */}
+      {activeTab === 'guide' && (
+        <div className="space-y-6">
+          <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-3xl p-5 sm:p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">چرا بیلد خودکار در GitHub ایجاد نشد؟ (دلایل متداول و راه‌حل)</h3>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  برای اینکه GitHub Actions به درستی شروع به ساخت فایل APK کند، ۴ گام زیر را در ریپازیتوری خود بررسی کنید:
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Step 1 */}
+            <div className="bg-[#141924] border border-slate-800 p-5 rounded-3xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center font-bold text-xs font-mono">
+                  ۱
+                </div>
+                <span className="text-[11px] font-mono text-sky-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+                  مسیر دقیق فایل ورک‌فلو
+                </span>
+              </div>
+              <h4 className="text-sm font-bold text-white">۱. قرارگیری فایل در مسیر .github/workflows/</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                گیت‌هاب تنها در صورتی ورک‌فلو را شناسایی می‌کند که فایل <code className="text-amber-400 font-mono">build-apk.yml</code> دقیقاً درون پوشه <code className="text-sky-300 font-mono">.github/workflows/</code> در ریشه مخزن قرار داشته باشد.
+              </p>
+            </div>
+
+            {/* Step 2 */}
+            <div className="bg-[#141924] border border-slate-800 p-5 rounded-3xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center justify-center font-bold text-xs font-mono">
+                  ۲
+                </div>
+                <span className="text-[11px] font-mono text-emerald-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+                  Settings -&gt; Actions
+                </span>
+              </div>
+              <h4 className="text-sm font-bold text-white">۲. فعال‌سازی دسترسی Actions در تنظیمات گیت‌هاب</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                در ریپازیتوری خود به تب <strong>Settings</strong> بروید -&gt; از منوی چپ گزینه <strong>Actions &gt; General</strong> را انتخاب کنید -&gt; در بخش <strong>Workflow permissions</strong> گزینه <strong>Read and write permissions</strong> را فعال کرده و Save کنید.
+              </p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="bg-[#141924] border border-slate-800 p-5 rounded-3xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold text-xs font-mono">
+                  ۳
+                </div>
+                <span className="text-[11px] font-mono text-amber-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+                  تب Actions &gt; Run workflow
+                </span>
+              </div>
+              <h4 className="text-sm font-bold text-white">۳. اجرای دستی (Manual Trigger)</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                در ریپازیتوری خود به تب <strong>Actions</strong> بروید -&gt; از لیست سمت چپ روی ورک‌فلو <strong>Android CI &amp; APK Release Build</strong> کلیک کنید -&gt; روی دکمه آبی‌رنگ <strong>Run workflow</strong> کلیک کنید تا بیلد در سرورهای اوبونتو آغاز شود.
+              </p>
+            </div>
+
+            {/* Step 4 */}
+            <div className="bg-[#141924] border border-slate-800 p-5 rounded-3xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center font-bold text-xs font-mono">
+                  ۴
+                </div>
+                <span className="text-[11px] font-mono text-purple-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+                  دانلود فایل APK
+                </span>
+              </div>
+              <h4 className="text-sm font-bold text-white">۴. دریافت فایل APK از بخش Artifacts</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                پس از پایان بیلد (سبز شدن تیک)، وارد جزئیات اجرای آن شوید. در انتهای صفحه بخش <strong>Artifacts</strong> فایل <code className="text-emerald-400 font-mono">AI-Fitness-Coach-Assistant-Debug-APK</code> با لینک مستقیم قابل دانلود و نصب روی گوشی است.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* View 1: Project Files Explorer & Code Viewer */}
       {activeTab === 'files' && (

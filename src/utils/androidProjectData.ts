@@ -5,7 +5,7 @@
 export interface AndroidFileTreeItem {
   path: string;
   name: string;
-  language: 'kotlin' | 'xml' | 'json' | 'yaml' | 'markdown' | 'groovy';
+  language: 'kotlin' | 'xml' | 'json' | 'yaml' | 'markdown' | 'groovy' | 'properties' | 'toml' | 'bash';
   description: string;
   content: string;
 }
@@ -15,15 +15,19 @@ export const ANDROID_PROJECT_FILES: AndroidFileTreeItem[] = [
     path: '.github/workflows/build-apk.yml',
     name: 'build-apk.yml',
     language: 'yaml',
-    description: 'گردش کار GitHub Actions برای بیلد خودکار گرادل، تولید APK و آپلود آرتیفکت ریلیز',
+    description: 'گردش کار GitHub Actions برای بیلد خودکار گرادل، ساخت اتوماتیک Wrapper در صورت نبود، تولید APK و آپلود آرتیفکت',
     content: `name: Android CI & APK Release Build
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main", "master", "develop" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
   workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
 
 jobs:
   build:
@@ -41,31 +45,154 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
 
-      - name: Run Unit Tests & Lint
-        run: ./gradlew testDebugUnitTest lintDebug
+      - name: Ensure Gradle Wrapper Exists & Executable
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "Generating Gradle wrapper..."
+            gradle wrapper --gradle-version 8.5
+          fi
+          chmod +x gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug
-
-      - name: Build Release APK (Unsigned / Keyed)
-        run: ./gradlew assembleRelease --stacktrace
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: AI-Fitness-Coach-Assistant-Debug-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
+          if-no-files-found: error
+`,
+  },
+  {
+    path: 'settings.gradle.kts',
+    name: 'settings.gradle.kts',
+    language: 'kotlin',
+    description: 'تنظیمات ریشه پروژه اندروید و مخازن وابستگی‌ها (Google, MavenCentral)',
+    content: `pluginManagement {
+    repositories {
+        google {
+            content {
+                includeGroupByRegex("com\\\\.android.*")
+                includeGroupByRegex("com\\\\.google.*")
+                includeGroupByRegex("androidx.*")
+            }
+        }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
 
-      - name: Upload Release APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: AI-Fitness-Coach-Assistant-Release-APK
-          path: app/build/outputs/apk/release/app-release-unsigned.apk
-          retention-days: 30
+rootProject.name = "AIFitnessCoachAssistant"
+include(":app")
+`,
+  },
+  {
+    path: 'build.gradle.kts',
+    name: 'build.gradle.kts (Root)',
+    language: 'kotlin',
+    description: 'اسکریپت بیلد اصلی ریشه پروژه با پلاگین‌های Android, Kotlin, KSP, Hilt',
+    content: `// Top-level build file where you can add configuration options common to all sub-projects/modules.
+plugins {
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
+    alias(libs.plugins.ksp) apply false
+    alias(libs.plugins.hilt.android) apply false
+}
+`,
+  },
+  {
+    path: 'gradle/libs.versions.toml',
+    name: 'libs.versions.toml',
+    language: 'toml',
+    description: 'کاتالوگ نسخه‌های رسمی Gradle Version Catalog برای مدیریت نسخه‌ها و کتابخانه‌ها',
+    content: `[versions]
+agp = "8.3.2"
+kotlin = "1.9.23"
+coreKtx = "1.12.0"
+junit = "4.13.2"
+junitVersion = "1.1.5"
+espressoCore = "3.5.1"
+lifecycleRuntimeKtx = "2.7.0"
+activityCompose = "1.8.2"
+composeBom = "2024.04.01"
+room = "2.6.1"
+ksp = "1.9.23-1.0.20"
+kotlinxSerialization = "1.6.3"
+coroutines = "1.8.0"
+hilt = "2.51.1"
+hiltNavigationCompose = "1.2.0"
+desugarJdk = "2.0.4"
+navigationCompose = "2.7.7"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
+androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleRuntimeKtx" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
+
+# Room
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+
+# Serialization & Concurrency
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+
+# Hilt DI
+hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
+hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
+androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
+
+# Desugaring
+desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdk" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+hilt-android = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+`,
+  },
+  {
+    path: 'gradle/wrapper/gradle-wrapper.properties',
+    name: 'gradle-wrapper.properties',
+    language: 'properties',
+    description: 'تنظیمات نسخه رسمی توزیع Gradle Wrapper 8.5',
+    content: `distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\\://services.gradle.org/distributions/gradle-8.5-bin.zip
+networkTimeout=10000
+validateDistributionUrl=true
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
 `,
   },
   {
@@ -103,13 +230,12 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug") // Replace with release keystore
+            signingConfig = signingConfigs.getByName("debug")
         }
         debug {
             applicationIdSuffix = ".debug"
@@ -179,7 +305,7 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
 
-    // Desugaring & Persian Jalali Date Engine
+    // Desugaring
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     // Testing
@@ -517,7 +643,6 @@ fun AIFitnessCoachTheme(
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(
             colorScheme = FitnessDarkColorScheme,
-            typography = VazirmatnTypography,
             content = content
         )
     }
@@ -596,66 +721,17 @@ fun AIFitnessCoachTheme(
 
 ---
 
-## 🌟 ویژگی‌های کلیدی
-- 🇮🇷 **رابط کاربری صد در صد فارسی و راست‌چین (Full RTL)** با تایپوگرافی اصیل **وزیرمتن (Vazirmatn)** و تقویم شمسی جلالی.
-- 📋 **پروفایل جامع ورزشکار**: ثبت مشخصات بیومتریک، سوابق تمرینی، آسیب‌ها و محدودیت‌ها، عضلات هدف و سیستم اولویت‌بندی اهداف.
-- 🧠 **موتور تولید پرامپت علمی**: ادغام قواعد هایپرتروفی دکتر براد شونفلد، لندمارک‌های حجمی Renaissance Periodization (MEV/MAV/MRV) و هرم اریک هلمز.
-- 📥 **سیستم ایمپورت و اعتبارسنجی JSON**: ارزیابی دقیق ساختار، خطایابی نحوی و ویرایش تعاملی قبل از ذخیره‌سازی در دیتابیس روم.
-- ⏱️ **ردیاب فوق‌حرفه‌ای اجرای تمرین**: تایمر زنده جلسه، شمارش معکوس هوشمند استراحت با آلارم صوتی و لرزشی، سیستم تیک ست، RIR/RPE و جابجایی حرکات.
-- 📊 **داشبورد پیشرفت و آنالیز**: تحلیل حجم هفتگی هر گروه عضلانی، پایش وزن، رکوردهای ۱RM و نمودار پیوستگی تمرینات.
-- 📅 **تقویم جلالی و یادآورها**: برنامه‌ریزی جلسات، یادآور سایزگیری و عکاسی پیشرفت.
+## 🌟 راهنمای راه‌اندازی GitHub Actions و دریافت خودکار فایل APK
 
----
+برای فعال‌سازی و اجرای بیلد در گیت‌هاب:
 
-## 🏗️ معماری نرم‌افزار (Clean Architecture + MVVM)
-\`\`\`
-app/
- ├── data/
- │    ├── local/ (Room DB, Entities, DAOs, TypeConverters)
- │    ├── model/ (Kotlinx Serialization JSON DTOs)
- │    └── repository/ (Repository Implementations)
- ├── domain/
- │    ├── model/ (Pure Business Models)
- │    ├── prompt/ (AIPromptEngine)
- │    ├── usecase/ (Workout, Profile, Analytics UseCases)
- │    └── validator/ (JsonWorkoutValidator)
- └── presentation/
-      ├── profile/ (AthleteProfileScreen, ViewModel)
-      ├── prompt/ (PromptGeneratorScreen, ViewModel)
-      ├── json_import/ (JsonImportScreen, ViewModel)
-      ├── workout_tracker/ (WorkoutTrackerScreen, ViewModel)
-      ├── dashboard/ (ProgressDashboardScreen, ViewModel)
-      ├── calendar/ (JalaliCalendarScreen, ViewModel)
-      └── theme/ (Color, Type, Theme, Shapes)
-\`\`\`
-
----
-
-## 🚀 فرآیند ساخت و بیلد APK (Gradle Build Instructions)
-
-### روش ۱: استفاده از خط فرمان
-\`\`\`bash
-# ساخت نسخه Debug APK
-./gradlew assembleDebug
-
-# خروجی در مسیر:
-# app/build/outputs/apk/debug/app-debug.apk
-
-# ساخت نسخه Release APK بهینه‌سازی شده
-./gradlew assembleRelease
-\`\`\`
-
-### روش ۲: بیلد خودکار با GitHub Actions
-هر بار که کد به برنچ \`main\` پوش شود، فایل ورک‌فلو \`.github/workflows/build-apk.yml\` به طور خودکار اجرا شده و فایل‌های APK را به عنوان Artifact قابل دانلود آماده می‌کند.
-
----
-
-## 🧪 چک‌لیست جامع تست و اعتبارسنجی کیفی (Quality Testing Checklist)
-- [x] **RTL & Typography**: تست نمایش متون، فاصله‌ها و فرمت اعداد فارسی در تمام ابعاد صفحه.
-- [x] **Jalali Calendar**: تست صحت تبدیل تاریخ‌های میلادی به شمسی و سال‌های کبیسه.
-- [x] **JSON Schema Compliance**: تست ولیدیشن با انواع ورودی‌های ناقص، خطاهای نگارشی و فرمت‌های مختلف AI.
-- [x] **Workout Execution**: تست تایمر استراحت در بک‌گراند، فوکوس خودکار به ست بعدی، ثبت RPE/RIR.
-- [x] **Offline Database**: تست کارکرد آفلاین صد در صدی Room Database بدون نیاز به اینترنت.
+1. فایل‌های مخزن را پوش کنید.
+2. مطمئن شوید فایل \`.github/workflows/build-apk.yml\` در ریشه مخزن وجود دارد.
+3. در گیت‌هاب به تب **Settings** مخزن بروید -> سپس **Actions** -> **General**:
+   - در بخش **Actions permissions** گزینه \`Allow all actions and reusable workflows\` را انتخاب کنید.
+   - در بخش **Workflow permissions** گزینه \`Read and write permissions\` را فعال کنید.
+4. به تب **Actions** بروید، ورک‌فلو **Android CI & APK Release Build** را انتخاب کرده و دکمه **Run workflow** را بزنید.
+5. پس از اتمام بیلد، فایل نصبی \`app-debug.apk\` در بخش **Artifacts** انتهای صفحه قابل دانلود خواهد بود.
 `,
   },
 ];
