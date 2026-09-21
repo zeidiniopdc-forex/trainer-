@@ -43,7 +43,9 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Setup Gradle 8.5
         uses: gradle/actions/setup-gradle@v3
@@ -81,13 +83,7 @@ exec java -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
     description: 'تنظیمات ریشه پروژه اندروید و مخازن وابستگی‌ها (Google, MavenCentral)',
     content: `pluginManagement {
     repositories {
-        google {
-            content {
-                includeGroupByRegex("com\\\\.android.*")
-                includeGroupByRegex("com\\\\.google.*")
-                includeGroupByRegex("androidx.*")
-            }
-        }
+        google()
         mavenCentral()
         gradlePluginPortal()
     }
