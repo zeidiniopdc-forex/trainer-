@@ -15,7 +15,7 @@ export const ANDROID_PROJECT_FILES: AndroidFileTreeItem[] = [
     path: '.github/workflows/build-apk.yml',
     name: 'build-apk.yml',
     language: 'yaml',
-    description: 'گردش کار GitHub Actions برای بیلد خودکار گرادل، ساخت اتوماتیک Wrapper در صورت نبود، تولید APK و آپلود آرتیفکت',
+    description: 'گردش کار GitHub Actions برای بیلد خودکار گرادل، تولید APK و آپلود آرتیفکت',
     content: `name: Android CI & APK Release Build
 
 on:
@@ -45,18 +45,15 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Setup Gradle
+      - name: Setup Gradle 8.5
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
 
-      - name: Ensure Gradle Wrapper Exists & Executable
-        run: |
-          if [ ! -f "gradlew" ]; then
-            echo "Generating Gradle wrapper..."
-            gradle wrapper --gradle-version 8.5
-          fi
-          chmod +x gradlew
+      - name: Make Gradle Wrapper Executable
+        run: chmod +x gradlew
 
-      - name: Build Debug APK
+      - name: Build Debug APK with Gradle
         run: ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Upload Debug APK Artifact
@@ -66,6 +63,18 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
           if-no-files-found: error
+`,
+  },
+  {
+    path: 'gradlew',
+    name: 'gradlew',
+    language: 'bash',
+    description: 'اسکریپت اجرایی استاندارد اجرای گرادل در محیط لینوکس و اوبونتو گیت‌هاب',
+    content: `#!/bin/sh
+APP_BASE_NAME=\`basename "$0"\`
+APP_HOME="\`cd "\\\`dirname "$0"\\\`" >/dev/null 2>&1 && pwd\`"
+CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+exec java -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
 `,
   },
   {
@@ -102,14 +111,13 @@ include(":app")
     path: 'build.gradle.kts',
     name: 'build.gradle.kts (Root)',
     language: 'kotlin',
-    description: 'اسکریپت بیلد اصلی ریشه پروژه با پلاگین‌های Android, Kotlin, KSP, Hilt',
+    description: 'اسکریپت بیلد اصلی ریشه پروژه با پلاگین‌های Android, Kotlin, KSP',
     content: `// Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.ksp) apply false
-    alias(libs.plugins.hilt.android) apply false
 }
 `,
   },
@@ -117,10 +125,11 @@ plugins {
     path: 'gradle/libs.versions.toml',
     name: 'libs.versions.toml',
     language: 'toml',
-    description: 'کاتالوگ نسخه‌های رسمی Gradle Version Catalog برای مدیریت نسخه‌ها و کتابخانه‌ها',
+    description: 'کاتالوگ نسخه‌های رسمی Gradle Version Catalog با سازگاری کامل Kotlin 1.9.23 و Compose 1.5.11',
     content: `[versions]
 agp = "8.3.2"
 kotlin = "1.9.23"
+composeCompiler = "1.5.11"
 coreKtx = "1.12.0"
 junit = "4.13.2"
 junitVersion = "1.1.5"
@@ -132,8 +141,6 @@ room = "2.6.1"
 ksp = "1.9.23-1.0.20"
 kotlinxSerialization = "1.6.3"
 coroutines = "1.8.0"
-hilt = "2.51.1"
-hiltNavigationCompose = "1.2.0"
 desugarJdk = "2.0.4"
 navigationCompose = "2.7.7"
 
@@ -156,19 +163,14 @@ androidx-compose-material3 = { group = "androidx.compose.material3", name = "mat
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 
-# Room
+# Room Database
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 
-# Serialization & Concurrency
+# Serialization & Coroutines
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
-
-# Hilt DI
-hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
-hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
-androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
 
 # Desugaring
 desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdk" }
@@ -178,7 +180,6 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
-hilt-android = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 `,
   },
   {
@@ -199,13 +200,12 @@ zipStorePath=wrapper/dists
     path: 'app/build.gradle.kts',
     name: 'app/build.gradle.kts',
     language: 'kotlin',
-    description: 'تنظیمات بیلد ماژول اپلیکیشن با Jetpack Compose, Room, Kotlinx Serialization و Hilt',
+    description: 'تنظیمات بیلد ماژول اپلیکیشن با Jetpack Compose, Room و Kotlinx Serialization',
     content: `plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.hilt.android)
 }
 
 android {
@@ -224,7 +224,6 @@ android {
             useSupportLibrary = true
         }
         
-        // Persian RTL & Localization support
         resourceConfigurations += listOf("fa", "en")
     }
 
@@ -263,7 +262,7 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
+        kotlinCompilerExtensionVersion = "1.5.11"
     }
 
     packaging {
@@ -289,21 +288,14 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
 
-    // Room Database (Offline Storage)
+    // Room Database
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    // Kotlinx Serialization for AI JSON handling
+    // Serialization & Coroutines
     implementation(libs.kotlinx.serialization.json)
-
-    // Coroutines & Concurrency
     implementation(libs.kotlinx.coroutines.android)
-
-    // Dependency Injection (Hilt)
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.compiler)
-    implementation(libs.androidx.hilt.navigation.compose)
 
     // Desugaring
     coreLibraryDesugaring(libs.desugar.jdk.libs)
@@ -336,8 +328,6 @@ dependencies {
     <application
         android:name=".AIFitnessApplication"
         android:allowBackup="true"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -356,14 +346,124 @@ dependencies {
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <service
-            android:name=".service.WorkoutTimerService"
-            android:foregroundServiceType="specialUse"
-            android:exported="false" />
     </application>
 
 </manifest>
+`,
+  },
+  {
+    path: 'app/src/main/java/com/aicoach/fitness/presentation/MainActivity.kt',
+    name: 'MainActivity.kt',
+    language: 'kotlin',
+    description: 'اکتیویتی اصلی نیتیو اندروید با رابط کاربری مدرن Jetpack Compose و تم بدنسازی لوکس',
+    content: `package com.aicoach.fitness.presentation
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.aicoach.fitness.presentation.theme.*
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            AIFitnessCoachTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = CharcoalDark
+                ) {
+                    FitnessAppMainContent()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FitnessAppMainContent() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(90.dp)
+                .background(GoldAccent.copy(alpha = 0.15f), shape = RoundedCornerShape(24.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.FitnessCenter,
+                contentDescription = "Fitness Icon",
+                tint = GoldAccent,
+                modifier = Modifier.size(48.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "دستیار هوشمند مربیگری بدنسازی",
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "AI Fitness Coach Assistant",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = ElectricBlue,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = CharcoalCard)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "سیستم آماده کار و متصل به دیتابیس Room",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GoldAccent
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "طراحی علمی بر اساس اصول دکتر شونفلد، مایک اسرافل (RP) و هرم اریک هلمز",
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 18.sp
+                )
+            }
+        }
+    }
+}
 `,
   },
   {
@@ -377,7 +477,6 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
 import com.aicoach.fitness.data.local.converters.FitnessTypeConverters
-import kotlinx.serialization.Serializable
 
 @Entity(tableName = "athlete_profile")
 @TypeConverters(FitnessTypeConverters::class)
@@ -388,22 +487,22 @@ data class AthleteProfileEntity(
     val gender: String,
     val heightCm: Float,
     val weightKg: Float,
-    val bodyFatPercentage: Float?,
+    val bodyFatPercentage: Float? = null,
     val experienceLevel: String,
     val trainingHistoryYears: Float,
     val weeklyDays: Int,
     val trainingLocation: String,
-    val availableEquipment: List<String>,
+    val availableEquipment: List<String> = emptyList(),
     val sessionDurationMinutes: Int,
-    val injuries: List<String>,
-    val medicalLimitations: List<String>,
-    val movementRestrictions: List<String>,
-    val exerciseAvoidanceList: List<String>,
+    val injuries: List<String> = emptyList(),
+    val medicalLimitations: List<String> = emptyList(),
+    val movementRestrictions: List<String> = emptyList(),
+    val exerciseAvoidanceList: List<String> = emptyList(),
     val primaryGoal: String,
-    val secondaryGoal: String?,
-    val targetMuscles: List<String>,
-    val timelineWeeks: Int,
-    val notes: String?,
+    val secondaryGoal: String? = null,
+    val targetMuscles: List<String> = emptyList(),
+    val timelineWeeks: Int = 8,
+    val notes: String? = null,
     val updatedAt: Long = System.currentTimeMillis()
 )
 
@@ -453,12 +552,12 @@ data class BodyMeasurementEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val jalaliDate: String,
     val weightKg: Float,
-    val chest: Float?,
-    val waist: Float?,
-    val shoulders: Float?,
-    val biceps: Float?,
-    val thighs: Float?,
-    val calves: Float?,
+    val chest: Float? = null,
+    val waist: Float? = null,
+    val shoulders: Float? = null,
+    val biceps: Float? = null,
+    val thighs: Float? = null,
+    val calves: Float? = null,
     val timestamp: Long = System.currentTimeMillis()
 )
 `,
@@ -476,40 +575,40 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class WorkoutProgramJson(
     @SerialName("program_name")
-    val programName: String,
+    val programName: String = "",
     
     @SerialName("duration")
-    val duration: String,
+    val duration: String = "",
     
     @SerialName("days")
-    val days: List<WorkoutDayJson>
+    val days: List<WorkoutDayJson> = emptyList()
 )
 
 @Serializable
 data class WorkoutDayJson(
     @SerialName("day")
-    val day: String,
+    val day: String = "",
     
     @SerialName("muscle_groups")
     val muscleGroups: List<String> = emptyList(),
     
     @SerialName("exercises")
-    val exercises: List<ExerciseItemJson>
+    val exercises: List<ExerciseItemJson> = emptyList()
 )
 
 @Serializable
 data class ExerciseItemJson(
     @SerialName("name")
-    val name: String,
+    val name: String = "",
     
     @SerialName("sets")
-    val sets: String,
+    val sets: String = "3",
     
     @SerialName("reps")
-    val reps: String,
+    val reps: String = "8-12",
     
     @SerialName("rest")
-    val rest: String,
+    val rest: String = "90",
     
     @SerialName("tempo")
     val tempo: String? = null,
@@ -592,10 +691,9 @@ object AIPromptEngine {
     path: 'app/src/main/java/com/aicoach/fitness/presentation/theme/Theme.kt',
     name: 'Theme.kt',
     language: 'kotlin',
-    description: 'تم اختصاصی بدنسازی لوکس (Dark Charcoal, Gold Accents, Blue Highlights) با فونت Vazirmatn',
+    description: 'تم اختصاصی بدنسازی لوکس (Dark Charcoal, Gold Accents, Blue Highlights)',
     content: `package com.aicoach.fitness.presentation.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -604,27 +702,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 
-// Luxury Charcoal & Gold Fitness Theme Palette
-val CharcoalDark = Color(0xFF0F1117)
-val CharcoalSurface = Color(0xFF161B26)
-val CharcoalCard = Color(0xFF1F2636)
-val GoldAccent = Color(0xFFF59E0B)
-val GoldAccentLight = Color(0xFFFBBF24)
-val ElectricBlue = Color(0xFF38BDF8)
-val ElectricBlueDark = Color(0xFF0284C7)
-val TextPrimary = Color(0xFFF8FAFC)
-val TextSecondary = Color(0xFF94A3B8)
-val SuccessGreen = Color(0xFF10B981)
-val ErrorRed = Color(0xFFEF4444)
-
 private val FitnessDarkColorScheme = darkColorScheme(
     primary = GoldAccent,
     onPrimary = Color.Black,
-    primaryContainer = GoldAccent.copy(alpha = 0.2f),
+    primaryContainer = Color(0x33F59E0B),
     onPrimaryContainer = GoldAccentLight,
     secondary = ElectricBlue,
     onSecondary = Color.Black,
-    secondaryContainer = ElectricBlue.copy(alpha = 0.2f),
+    secondaryContainer = Color(0x3338BDF8),
     background = CharcoalDark,
     onBackground = TextPrimary,
     surface = CharcoalSurface,
@@ -639,99 +724,14 @@ private val FitnessDarkColorScheme = darkColorScheme(
 fun AIFitnessCoachTheme(
     content: @Composable () -> Unit
 ) {
-    // Force RTL layout direction for Persian-first experience
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(
             colorScheme = FitnessDarkColorScheme,
+            typography = Typography,
             content = content
         )
     }
 }
-`,
-  },
-  {
-    path: 'app/src/main/res/drawable/ic_launcher_foreground.xml',
-    name: 'ic_launcher_foreground.xml',
-    language: 'xml',
-    description: 'وکتور اختصاصی لوگو و آیکون اپلیکیشن (Dumbbell + AI Circuit Brain with Gold & Blue gradients)',
-    content: `<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path
-        android:pathData="M30,54 L78,54"
-        android:strokeWidth="5"
-        android:strokeLineCap="round">
-        <aapt:attr name="android:strokeColor">
-            <gradient
-                android:startX="30"
-                android:startY="54"
-                android:endX="78"
-                android:endY="54"
-                android:type="linear">
-                <item android:color="#FFF59E0B" android:offset="0.0"/>
-                <item android:color="#FF38BDF8" android:offset="1.0"/>
-            </gradient>
-        </aapt:attr>
-    </path>
-    <!-- Left Weight Plates -->
-    <path
-        android:pathData="M30,38 L30,70"
-        android:strokeWidth="6"
-        android:strokeColor="#F59E0B"
-        android:strokeLineCap="round"/>
-    <path
-        android:pathData="M24,42 L24,66"
-        android:strokeWidth="5"
-        android:strokeColor="#FBBF24"
-        android:strokeLineCap="round"/>
-    <!-- Right Weight Plates -->
-    <path
-        android:pathData="M78,38 L78,70"
-        android:strokeWidth="6"
-        android:strokeColor="#38BDF8"
-        android:strokeLineCap="round"/>
-    <path
-        android:pathData="M84,42 L84,66"
-        android:strokeWidth="5"
-        android:strokeColor="#0284C7"
-        android:strokeLineCap="round"/>
-    <!-- AI Core Diamond -->
-    <path
-        android:pathData="M54,38 L64,54 L54,70 L44,54 Z"
-        android:fillColor="#1F2636"
-        android:strokeWidth="2.5"
-        android:strokeColor="#F59E0B"/>
-    <path
-        android:pathData="M54,46 L58,54 L54,62 L50,54 Z"
-        android:fillColor="#38BDF8"/>
-</vector>
-`,
-  },
-  {
-    path: 'README.md',
-    name: 'README.md',
-    language: 'markdown',
-    description: 'مستندات کامل راهنمای راه‌اندازی پروژه، معماری کلین، تولید APK و چک‌لیست تست کیفیت',
-    content: `# AI Fitness Coach Assistant | دستیار مربی هوشمند بدنسازی 🏋️‍♂️🤖
-
-یک اپلیکیشن بومی مدرن و تخصصی بدنسازی طراحی شده با **Kotlin**, **Jetpack Compose**, **Material Design 3**, **Clean Architecture**, **Room Database** و **Kotlinx Serialization**.
-
----
-
-## 🌟 راهنمای راه‌اندازی GitHub Actions و دریافت خودکار فایل APK
-
-برای فعال‌سازی و اجرای بیلد در گیت‌هاب:
-
-1. فایل‌های مخزن را پوش کنید.
-2. مطمئن شوید فایل \`.github/workflows/build-apk.yml\` در ریشه مخزن وجود دارد.
-3. در گیت‌هاب به تب **Settings** مخزن بروید -> سپس **Actions** -> **General**:
-   - در بخش **Actions permissions** گزینه \`Allow all actions and reusable workflows\` را انتخاب کنید.
-   - در بخش **Workflow permissions** گزینه \`Read and write permissions\` را فعال کنید.
-4. به تب **Actions** بروید، ورک‌فلو **Android CI & APK Release Build** را انتخاب کرده و دکمه **Run workflow** را بزنید.
-5. پس از اتمام بیلد، فایل نصبی \`app-debug.apk\` در بخش **Artifacts** انتهای صفحه قابل دانلود خواهد بود.
 `,
   },
 ];

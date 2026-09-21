@@ -2,7 +2,7 @@ name: Android CI & APK Release Build
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main", "master", "develop" ]
   pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
@@ -27,18 +27,15 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Setup Gradle
+      - name: Setup Gradle 8.5
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
 
-      - name: Ensure Gradle Wrapper Exists & Executable
-        run: |
-          if [ ! -f "gradlew" ]; then
-            echo "Generating Gradle wrapper..."
-            gradle wrapper --gradle-version 8.5
-          fi
-          chmod +x gradlew
+      - name: Make Gradle Wrapper Executable
+        run: chmod +x gradlew
 
-      - name: Build Debug APK
+      - name: Build Debug APK with Gradle
         run: ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Upload Debug APK Artifact
