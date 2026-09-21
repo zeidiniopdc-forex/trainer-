@@ -179,13 +179,26 @@ ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 `,
   },
   {
+    path: 'gradle.properties',
+    name: 'gradle.properties',
+    language: 'properties',
+    description: 'تنظیمات پروژه شامل فعال‌سازی رسمی AndroidX و بهینه‌سازی حافظه گرادل',
+    content: `# Project-wide Gradle settings.
+org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+android.useAndroidX=true
+android.nonTransitiveRClass=true
+kotlin.code.style=official
+org.gradle.configuration-cache=false
+`,
+  },
+  {
     path: 'gradle/wrapper/gradle-wrapper.properties',
     name: 'gradle-wrapper.properties',
     language: 'properties',
-    description: 'تنظیمات نسخه رسمی توزیع Gradle Wrapper 8.5',
+    description: 'تنظیمات نسخه رسمی توزیع Gradle Wrapper 8.8',
     content: `distributionBase=GRADLE_USER_HOME
 distributionPath=wrapper/dists
-distributionUrl=https\\://services.gradle.org/distributions/gradle-8.5-bin.zip
+distributionUrl=https\\://services.gradle.org/distributions/gradle-8.8-bin.zip
 networkTimeout=10000
 validateDistributionUrl=true
 zipStoreBase=GRADLE_USER_HOME
