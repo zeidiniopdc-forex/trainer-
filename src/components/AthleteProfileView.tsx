@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   User,
   Activity,
@@ -17,6 +17,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Users,
 } from 'lucide-react';
 import {
   AthleteProfile,
@@ -34,6 +35,7 @@ interface AthleteProfileViewProps {
   onSaveProfile: (profile: AthleteProfile) => void;
   onNavigateToPrompt: () => void;
   theme?: 'dark' | 'light';
+  onOpenAthleteManager?: () => void;
 }
 
 export const AthleteProfileView: React.FC<AthleteProfileViewProps> = ({
@@ -41,10 +43,16 @@ export const AthleteProfileView: React.FC<AthleteProfileViewProps> = ({
   onSaveProfile,
   onNavigateToPrompt,
   theme = 'dark',
+  onOpenAthleteManager,
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [formData, setFormData] = useState<AthleteProfile>(profile);
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  // Sync state whenever active athlete profile changes
+  useEffect(() => {
+    setFormData(profile);
+  }, [profile]);
 
   // Quick addition states
   const [newEquipment, setNewEquipment] = useState('');
@@ -300,14 +308,30 @@ export const AthleteProfileView: React.FC<AthleteProfileViewProps> = ({
           </div>
 
           {/* Action CTAs */}
-          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+            {onOpenAthleteManager && (
+              <button
+                type="button"
+                onClick={onOpenAthleteManager}
+                className={`flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                  isLight
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                    : 'bg-slate-800/80 hover:bg-slate-700 text-amber-300 border-amber-500/30'
+                }`}
+                title="مشاهده همه شاگردان و ایجاد شاگرد جدید"
+              >
+                <Users className="w-4 h-4 text-amber-500" />
+                <span>لیست شاگردان ({formData.name})</span>
+              </button>
+            )}
+
             <button
               id="profile-save-btn"
               onClick={handleSave}
               className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-bold shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
             >
               <Save className="w-4 h-4" />
-              <span>ذخیره پرونده</span>
+              <span>ذخیره تغییرات</span>
             </button>
 
             <button
@@ -316,7 +340,7 @@ export const AthleteProfileView: React.FC<AthleteProfileViewProps> = ({
               className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold shadow-lg shadow-sky-500/20 transition-all cursor-pointer"
             >
               <Sparkles className="w-4 h-4" />
-              <span>تولید پرامپت هوش مصنوعی</span>
+              <span>تولید پرامپت هوشمند</span>
             </button>
           </div>
         </div>

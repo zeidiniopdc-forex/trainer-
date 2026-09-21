@@ -9,6 +9,8 @@ import { SAMPLE_PROGRAMS } from './jsonValidator';
 import { getCurrentJalaliDate, formatJalaliDate } from './jalali';
 
 const STORAGE_KEYS = {
+  ATHLETES_LIST: 'ai_fitness_athletes_list_v2',
+  ACTIVE_ATHLETE_ID: 'ai_fitness_active_athlete_id_v2',
   ATHLETE_PROFILE: 'ai_fitness_athlete_profile_v1',
   WORKOUT_PROGRAMS: 'ai_fitness_workout_programs_v1',
   ACTIVE_PROGRAM_ID: 'ai_fitness_active_program_id_v1',
@@ -17,6 +19,174 @@ const STORAGE_KEYS = {
   NOTIFICATIONS: 'ai_fitness_notifications_v1',
   API_KEY: 'ai_fitness_gemini_api_key_v1',
 };
+
+export const BLANK_ATHLETE_TEMPLATE: AthleteProfile = {
+  id: 'athlete-new-1',
+  name: 'شاگرد جدید',
+  age: 25,
+  gender: 'male',
+  heightCm: 175,
+  weightKg: 75,
+  bodyFatPercentage: undefined,
+  experienceLevel: 'intermediate',
+  trainingHistoryYears: 1,
+  weeklyDays: 4,
+  trainingLocation: 'gym',
+  availableEquipment: [
+    'هالتر و دمبل',
+    'دستگاه‌های سیم‌کش',
+    'نیمکت‌های مدرج',
+  ],
+  sessionDurationMinutes: 60,
+  injuries: [],
+  medicalLimitations: [],
+  movementRestrictions: [],
+  exerciseAvoidanceList: [],
+  primaryGoal: 'hypertrophy',
+  secondaryGoal: '',
+  targetMuscles: ['سینه بالایی', 'سرشانه کناری (دلتوئید میانی)', 'زیربغل و لاتیسموس (Lats)'],
+  timelineWeeks: 8,
+  measurements: [],
+  strengthRecords: [],
+  notes: '',
+  updatedAt: new Date().toISOString(),
+};
+
+export function createBlankAthlete(customName?: string): AthleteProfile {
+  const newId = `athlete-${Date.now()}`;
+  return {
+    ...BLANK_ATHLETE_TEMPLATE,
+    id: newId,
+    name: customName || `شاگرد ${new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}`,
+    measurements: [],
+    strengthRecords: [],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function getStoredAthletes(): AthleteProfile[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.ATHLETES_LIST);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+
+  // Fallback to legacy single profile if available
+  try {
+    const legacy = localStorage.getItem(STORAGE_KEYS.ATHLETE_PROFILE);
+    if (legacy) {
+      const parsedLegacy = JSON.parse(legacy);
+      if (parsedLegacy && parsedLegacy.name) {
+        const list = [parsedLegacy];
+        saveAthletes(list);
+        return list;
+      }
+    }
+  } catch {}
+
+  const initialList = [DEFAULT_PROFILE];
+  saveAthletes(initialList);
+  return initialList;
+}
+
+export function saveAthletes(athletes: AthleteProfile[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.ATHLETES_LIST, JSON.stringify(athletes));
+  } catch {}
+}
+
+export function getActiveAthleteId(): string {
+  try {
+    const active = localStorage.getItem(STORAGE_KEYS.ACTIVE_ATHLETE_ID);
+    if (active) return active;
+  } catch {}
+  const athletes = getStoredAthletes();
+  return athletes[0]?.id || DEFAULT_PROFILE.id;
+}
+
+export function setActiveAthleteId(id: string): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_ATHLETE_ID, id);
+  } catch {}
+}
+
+export function getActiveAthlete(): AthleteProfile {
+  const athletes = getStoredAthletes();
+  const activeId = getActiveAthleteId();
+  const found = athletes.find((a) => a.id === activeId);
+  return found || athletes[0] || DEFAULT_PROFILE;
+}
+
+export function resetToCleanSlate(): {
+  athletes: AthleteProfile[];
+  activeAthlete: AthleteProfile;
+  sessionLogs: WorkoutSessionLog[];
+  reminders: CalendarReminder[];
+} {
+  const blankAthlete = createBlankAthlete('شاگرد اول');
+  const cleanAthletes = [blankAthlete];
+  
+  saveAthletes(cleanAthletes);
+  setActiveAthleteId(blankAthlete.id);
+  saveProfile(blankAthlete);
+  
+  // Clear mock session logs and mock reminders to prevent corrupting real analysis
+  saveSessionLogs([]);
+  saveCalendarReminders([]);
+
+  return {
+    athletes: cleanAthletes,
+    activeAthlete: blankAthlete,
+    sessionLogs: [],
+    reminders: [],
+  };
+}
+
+export function loadDemoData(): {
+  athletes: AthleteProfile[];
+  activeAthlete: AthleteProfile;
+  sessionLogs: WorkoutSessionLog[];
+  reminders: CalendarReminder[];
+} {
+  const demoAthletes = [
+    DEFAULT_PROFILE,
+    {
+      ...BLANK_ATHLETE_TEMPLATE,
+      id: 'athlete-demo-02',
+      name: 'سارا کاظمی',
+      gender: 'female' as const,
+      age: 24,
+      heightCm: 168,
+      weightKg: 58,
+      experienceLevel: 'intermediate' as const,
+      primaryGoal: 'recomposition' as const,
+      weeklyDays: 3,
+      targetMuscles: ['سرینی و باسن (Glutes)', 'همسترینگ و زنجیره خلفی', 'عضلات میان‌تنه و شکم (Core/Abs)'],
+      measurements: [
+        { date: '۱۴۰۵/۰۶/۰۱', waist: 68, hips: 96, thighRight: 54, thighLeft: 54 },
+      ],
+      strengthRecords: [
+        { exerciseName: 'هیپ تراست با هالتر', weightKg: 90, reps: 8, date: '۱۴۰۵/۰۶/۱۰', estimatedOneRepMax: 111 },
+      ],
+    },
+  ];
+
+  saveAthletes(demoAthletes);
+  setActiveAthleteId(DEFAULT_PROFILE.id);
+  saveProfile(DEFAULT_PROFILE);
+  saveSessionLogs(DEFAULT_SESSION_LOGS);
+  saveCalendarReminders(DEFAULT_REMINDERS);
+
+  return {
+    athletes: demoAthletes,
+    activeAthlete: DEFAULT_PROFILE,
+    sessionLogs: DEFAULT_SESSION_LOGS,
+    reminders: DEFAULT_REMINDERS,
+  };
+}
+
 
 const DEFAULT_PROFILE: AthleteProfile = {
   id: 'athlete-default-01',

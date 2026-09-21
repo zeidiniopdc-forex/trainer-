@@ -6,7 +6,14 @@ import {
   CalendarReminder,
 } from './types';
 import {
-  getStoredProfile,
+  getStoredAthletes,
+  saveAthletes,
+  getActiveAthleteId,
+  setActiveAthleteId as saveActiveAthleteId,
+  getActiveAthlete,
+  createBlankAthlete,
+  resetToCleanSlate,
+  loadDemoData,
   saveProfile,
   getStoredPrograms,
   savePrograms,
@@ -24,10 +31,13 @@ import { JsonImportView } from './components/JsonImportView';
 import { WorkoutTrackerView } from './components/WorkoutTrackerView';
 import { ProgressDashboardView } from './components/ProgressDashboardView';
 import { JalaliCalendarView } from './components/JalaliCalendarView';
+import { AthleteManagerModal } from './components/AthleteManagerModal';
+import { BottomNavBar } from './components/BottomNavBar';
 
 export const App: React.FC = () => {
   // Navigation State
   const [activeTab, setActiveTab] = useState<ActiveTab>('profile');
+  const [isAthleteModalOpen, setIsAthleteModalOpen] = useState(false);
 
   // Theme State ('dark' | 'light')
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -43,8 +53,12 @@ export const App: React.FC = () => {
     });
   };
 
-  // Core Persistent States
-  const [profile, setProfileState] = useState<AthleteProfile>(getStoredProfile);
+  // Multi-Athlete Management States
+  const [athletes, setAthletes] = useState<AthleteProfile[]>(getStoredAthletes);
+  const [activeAthleteId, setActiveAthleteIdState] = useState<string>(getActiveAthleteId);
+  const [profile, setProfileState] = useState<AthleteProfile>(getActiveAthlete);
+
+  // Core Persistent States for Programs, Logs and Reminders
   const [programs, setProgramsState] = useState<WorkoutProgram[]>(getStoredPrograms);
   const [activeProgram, setActiveProgramState] = useState<WorkoutProgram>(getActiveProgram);
   const [sessionLogs, setSessionLogsState] = useState<WorkoutSessionLog[]>(getSessionLogs);
@@ -53,10 +67,64 @@ export const App: React.FC = () => {
   // Active workout day index
   const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
 
-  // State Handlers with Auto-Persistence
+  // Athlete Operations
+  const handleSelectAthlete = (athleteId: string) => {
+    saveActiveAthleteId(athleteId);
+    setActiveAthleteIdState(athleteId);
+    const selected = athletes.find((a) => a.id === athleteId);
+    if (selected) {
+      setProfileState(selected);
+      saveProfile(selected);
+    }
+  };
+
+  const handleAddNewAthlete = (name: string) => {
+    const newAth = createBlankAthlete(name);
+    const updated = [newAth, ...athletes];
+    setAthletes(updated);
+    saveAthletes(updated);
+    handleSelectAthlete(newAth.id);
+    setIsAthleteModalOpen(false);
+  };
+
+  const handleDeleteAthlete = (athleteId: string) => {
+    if (athletes.length <= 1) return;
+    const filtered = athletes.filter((a) => a.id !== athleteId);
+    setAthletes(filtered);
+    saveAthletes(filtered);
+    if (activeAthleteId === athleteId) {
+      handleSelectAthlete(filtered[0].id);
+    }
+  };
+
+  const handleResetToCleanSlate = () => {
+    const result = resetToCleanSlate();
+    setAthletes(result.athletes);
+    setActiveAthleteIdState(result.activeAthlete.id);
+    setProfileState(result.activeAthlete);
+    setSessionLogsState(result.sessionLogs);
+    setRemindersState(result.reminders);
+    setIsAthleteModalOpen(false);
+  };
+
+  const handleLoadDemo = () => {
+    const result = loadDemoData();
+    setAthletes(result.athletes);
+    setActiveAthleteIdState(result.activeAthlete.id);
+    setProfileState(result.activeAthlete);
+    setSessionLogsState(result.sessionLogs);
+    setRemindersState(result.reminders);
+    setIsAthleteModalOpen(false);
+  };
+
+  // Profile Update Handler
   const handleUpdateProfile = (newProfile: AthleteProfile) => {
     setProfileState(newProfile);
     saveProfile(newProfile);
+    // Sync into athletes list
+    const updated = athletes.map((a) => (a.id === newProfile.id ? newProfile : a));
+    setAthletes(updated);
+    saveAthletes(updated);
   };
 
   const handleUpdatePrograms = (newPrograms: WorkoutProgram[]) => {
@@ -125,15 +193,18 @@ export const App: React.FC = () => {
         activeProgramName={activeProgram.program_name}
         theme={theme}
         onToggleTheme={toggleTheme}
+        activeAthlete={profile}
+        onOpenAthleteManager={() => setIsAthleteModalOpen(true)}
       />
 
       {/* Main Screen Content Viewport */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-24 lg:pb-12">
         {activeTab === 'profile' && (
           <AthleteProfileView
             profile={profile}
             onSaveProfile={handleUpdateProfile}
             onNavigateToPrompt={() => setActiveTab('prompt')}
+            onOpenAthleteManager={() => setIsAthleteModalOpen(true)}
             theme={theme}
           />
         )}
@@ -171,6 +242,7 @@ export const App: React.FC = () => {
             profile={profile}
             sessionLogs={sessionLogs}
             onStartNewWorkout={() => setActiveTab('tracker')}
+            theme={theme}
           />
         )}
 
@@ -187,9 +259,32 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      {/* Footer */}
+      {/* Athlete Manager Modal */}
+      <AthleteManagerModal
+        isOpen={isAthleteModalOpen}
+        onClose={() => setIsAthleteModalOpen(false)}
+        athletes={athletes}
+        activeAthleteId={activeAthleteId}
+        onSelectAthlete={handleSelectAthlete}
+        onAddNewAthlete={handleAddNewAthlete}
+        onDeleteAthlete={handleDeleteAthlete}
+        onResetToCleanSlate={handleResetToCleanSlate}
+        onLoadDemoData={handleLoadDemo}
+        theme={theme}
+      />
+
+      {/* Mobile Ergonomic Bottom Navigation Bar */}
+      <BottomNavBar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onOpenAthleteManager={() => setIsAthleteModalOpen(true)}
+        activeAthleteName={profile.name}
+        theme={theme}
+      />
+
+      {/* Desktop Footer */}
       <footer
-        className={`border-t py-6 text-center text-xs transition-colors ${
+        className={`hidden lg:block border-t py-6 text-center text-xs transition-colors ${
           isLight
             ? 'border-slate-200 bg-white text-slate-500'
             : 'border-slate-800/80 bg-[#0a0d13] text-slate-500'
@@ -207,3 +302,4 @@ export const App: React.FC = () => {
 };
 
 export default App;
+
