@@ -1,0 +1,7 @@
+{
+  "name": "AI Fitness Coach Assistant",
+  "description": "دستیار مربی هوشمند بدنسازی - طراحی برنامه‌های تخصصی با هوش مصنوعی، ثبت تمرین و تحلیل پیشرفت ورزشی",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
