@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AthleteProfile,
   WorkoutProgram,
@@ -17,7 +17,6 @@ import {
   getCalendarReminders,
   saveCalendarReminders,
 } from './utils/storage';
-import { SAMPLE_PROGRAMS } from './utils/jsonValidator';
 import { Header, ActiveTab } from './components/Header';
 import { AthleteProfileView } from './components/AthleteProfileView';
 import { PromptGeneratorView } from './components/PromptGeneratorView';
@@ -25,11 +24,24 @@ import { JsonImportView } from './components/JsonImportView';
 import { WorkoutTrackerView } from './components/WorkoutTrackerView';
 import { ProgressDashboardView } from './components/ProgressDashboardView';
 import { JalaliCalendarView } from './components/JalaliCalendarView';
-import { AndroidExportView } from './components/AndroidExportView';
 
 export const App: React.FC = () => {
   // Navigation State
   const [activeTab, setActiveTab] = useState<ActiveTab>('profile');
+
+  // Theme State ('dark' | 'light')
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('ai_fitness_theme');
+    return saved === 'light' ? 'light' : 'dark';
+  });
+
+  const toggleTheme = () => {
+    setTheme((prev) => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('ai_fitness_theme', next);
+      return next;
+    });
+  };
 
   // Core Persistent States
   const [profile, setProfileState] = useState<AthleteProfile>(getStoredProfile);
@@ -95,13 +107,24 @@ export const App: React.FC = () => {
     setActiveTab('tracker');
   };
 
+  const isLight = theme === 'light';
+
   return (
-    <div className="min-h-screen bg-[#0d1017] text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black" dir="rtl">
+    <div
+      className={`min-h-screen flex flex-col font-sans selection:bg-amber-500 selection:text-black transition-colors ${
+        isLight
+          ? 'bg-[#f8fafc] text-slate-900'
+          : 'bg-[#0d1017] text-slate-100'
+      }`}
+      dir="rtl"
+    >
       {/* Top Universal RTL Header */}
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         activeProgramName={activeProgram.program_name}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       {/* Main Screen Content Viewport */}
@@ -111,6 +134,7 @@ export const App: React.FC = () => {
             profile={profile}
             onSaveProfile={handleUpdateProfile}
             onNavigateToPrompt={() => setActiveTab('prompt')}
+            theme={theme}
           />
         )}
 
@@ -161,15 +185,21 @@ export const App: React.FC = () => {
             }}
           />
         )}
-
-        {activeTab === 'android_code' && <AndroidExportView />}
       </main>
 
-      {/* Footer Branding & Version */}
-      <footer className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500 bg-[#0a0d13]">
+      {/* Footer */}
+      <footer
+        className={`border-t py-6 text-center text-xs transition-colors ${
+          isLight
+            ? 'border-slate-200 bg-white text-slate-500'
+            : 'border-slate-800/80 bg-[#0a0d13] text-slate-500'
+        }`}
+      >
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>دستیار هوشمند مربیگری بدنسازی (AI Fitness Coach Assistant) • نسخه ۱.۰.۰ نیتیو اندروید</span>
-          <span className="text-slate-600">طراحی شده بر اساس متدولوژی Brad Schoenfeld & Renaissance Periodization</span>
+          <span>دستیار هوشمند مربیگری بدنسازی (AI Fitness Coach Assistant)</span>
+          <span className={isLight ? 'text-slate-400' : 'text-slate-600'}>
+            طراحی علمی بر اساس اصول هایپرتروفی Brad Schoenfeld & Renaissance Periodization
+          </span>
         </div>
       </footer>
     </div>
