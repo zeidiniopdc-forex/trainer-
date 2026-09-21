@@ -26,6 +26,18 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build Web Application Assets
+        run: |
+          npm ci || npm install
+          npm run build
+          mkdir -p app/src/main/assets/web
+          cp -r dist/* app/src/main/assets/web/
+
       - name: Configure gradle.properties and Gradle Wrapper
         env:
           GRADLE_OPTS: "-Dandroid.useAndroidX=true -Dandroid.enableJetifier=true -Dandroid.nonTransitiveRClass=true"

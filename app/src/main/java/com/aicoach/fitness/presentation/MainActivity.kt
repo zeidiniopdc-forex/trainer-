@@ -1,64 +1,113 @@
 package com.aicoach.fitness.presentation
 
+import android.annotation.SuppressLint
 import android.os.Bundle
-import android.widget.Toast
+import android.view.ViewGroup
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.aicoach.fitness.data.local.FitnessDatabase
-import com.aicoach.fitness.data.local.entity.AthleteProfileEntity
-import com.aicoach.fitness.data.local.entity.WorkoutProgramEntity
-import com.aicoach.fitness.domain.prompt.AIPromptEngine
-import com.aicoach.fitness.presentation.theme.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import androidx.compose.ui.viewinterop.AndroidView
+import com.aicoach.fitness.presentation.theme.AIFitnessCoachTheme
+import com.aicoach.fitness.presentation.theme.CharcoalDark
 
 class MainActivity : ComponentActivity() {
+
+    private var webView: WebView? = null
+
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val database = FitnessDatabase.getDatabase(applicationContext)
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (webView?.canGoBack() == true) {
+                    webView?.goBack()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+
         setContent {
             AIFitnessCoachTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = CharcoalDark
                 ) {
-                    FitnessAppMainScreen(database)
+                    FitnessAppContainer(
+                        onWebViewCreated = { webView = it }
+                    )
                 }
             }
         }
     }
 }
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+fun FitnessAppContainer(
+    onWebViewCreated: (WebView) -> Unit
+) {
+    AndroidView(
+        modifier = Modifier.fillMaxSize(),
+        factory = { context ->
+            WebView(context).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                setBackgroundColor(0xFF0D1017.toInt())
+
+                settings.apply {
+                    javaScriptEnabled = true
+                    domStorageEnabled = true
+                    databaseEnabled = true
+                    allowFileAccess = true
+                    allowContentAccess = true
+                    useWideViewPort = true
+                    loadWithOverviewMode = true
+                    cacheMode = WebSettings.LOAD_DEFAULT
+                    setSupportZoom(false)
+                }
+
+                webChromeClient = WebChromeClient()
+                webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        view: WebView?,
+                        request: WebResourceRequest?
+                    ): Boolean {
+                        return false
+                    }
+                }
+
+                // Load the exact bundled offline web application
+                try {
+                    val assetList = context.assets.list("web")
+                    if (assetList != null && assetList.contains("index.html")) {
+                        loadUrl("file:///android_asset/web/index.html")
+                    } else {
+                        loadUrl("file:///android_asset/index.html")
+                    }
+                } catch (e: Exception) {
+                    loadUrl("file:///android_asset/web/index.html")
+                }
+
+                onWebViewCreated(this)
+            }
+        }
+    )
+}
+
 
 enum class NavigationTab(val title: String, val icon: ImageVector) {
     PROFILE("مشخصات شاگرد", Icons.Default.Person),
