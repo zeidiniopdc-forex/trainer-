@@ -207,12 +207,12 @@ zipStorePath=wrapper/dists
 
 android {
     namespace = "com.aicoach.fitness"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.aicoach.fitness"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
 
@@ -330,7 +330,7 @@ dependencies {
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AIFitnessCoachAssistant"
-        tools:targetApi="35">
+        tools:targetApi="34">
 
         <activity
             android:name=".presentation.MainActivity"
